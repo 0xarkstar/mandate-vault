@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildFundingSnapshot, computeMean } from '../src/feeds/funding.js'
+import {
+  buildFundingSnapshot,
+  computeMean,
+  parseBinanceFunding,
+  parseBybitFunding
+} from '../src/feeds/funding.js'
 
 describe('computeMean', () => {
   it('averages the last `window` rates and formats to 8 decimals', () => {
@@ -35,5 +40,57 @@ describe('buildFundingSnapshot', () => {
     const snap = buildFundingSnapshot([], '0.0007', '3100')
     expect(snap.lastRate).toBe('0.0007')
     expect(snap.mean7d).toBe('0')
+  })
+})
+
+describe('parseBybitFunding', () => {
+  const ticker = {
+    retCode: 0,
+    result: { list: [{ symbol: 'ETHUSDT', fundingRate: '0.00004552', markPrice: '1678.97' }] }
+  }
+
+  it('reverses the newest-first history so lastRate is the most recent rate', () => {
+    const history = {
+      retCode: 0,
+      result: {
+        list: [
+          { symbol: 'ETHUSDT', fundingRate: '0.0003', fundingRateTimestamp: '1781193600000' }, // newest
+          { symbol: 'ETHUSDT', fundingRate: '0.0002', fundingRateTimestamp: '1781164800000' },
+          { symbol: 'ETHUSDT', fundingRate: '0.0001', fundingRateTimestamp: '1781136000000' } // oldest
+        ]
+      }
+    }
+    const snap = parseBybitFunding(history, ticker)
+    expect(snap.lastRate).toBe('0.0003')
+    expect(snap.mean7d).toBe('0.00020000')
+    expect(snap.markPrice).toBe('1678.97')
+  })
+
+  it('throws when retCode is non-zero', () => {
+    const bad = { retCode: 10001, result: { list: [] } }
+    expect(() => parseBybitFunding(bad, ticker)).toThrow(/retCode 10001/)
+  })
+
+  it('throws when the ticker list is empty', () => {
+    const history = { retCode: 0, result: { list: [] } }
+    const emptyTicker = { retCode: 0, result: { list: [] } }
+    expect(() => parseBybitFunding(history, emptyTicker)).toThrow(/ticker list is empty/)
+  })
+
+  it('rejects malformed payloads via zod', () => {
+    expect(() => parseBybitFunding({ nope: true }, ticker)).toThrow()
+  })
+})
+
+describe('parseBinanceFunding', () => {
+  it('keeps the oldest-first ordering as-is', () => {
+    const history = [
+      { symbol: 'ETHUSDT', fundingTime: 1, fundingRate: '0.0001' },
+      { symbol: 'ETHUSDT', fundingTime: 2, fundingRate: '0.0005' }
+    ]
+    const premium = { symbol: 'ETHUSDT', markPrice: '1650.00', lastFundingRate: '0.0009' }
+    const snap = parseBinanceFunding(history, premium)
+    expect(snap.lastRate).toBe('0.0005')
+    expect(snap.markPrice).toBe('1650.00')
   })
 })

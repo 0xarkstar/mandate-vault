@@ -1,7 +1,7 @@
 {
-  "tool_name": "mcp__playwright__browser_take_screenshot",
-  "tool_input_preview": "{\"filename\":\"/tmp/mv-web-vaults.png\"}",
-  "error": "### Error\nError: File access denied: /tmp/mv-web-vaults.png is outside allowed roots. Allowed roots: /Users/arkstar/Projects/.playwright-mcp, /Users/arkstar/Projects",
-  "timestamp": "2026-06-11T14:02:29.671Z",
-  "retry_count": 1
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd /Users/arkstar/Projects/mandate-vault/agent && pnpm exec tsx -e \\\"\\nimport { fetchFunding } from './src/feeds/funding.js'\\nfetchFunding('ETHUSDT').then((snap) => console.log('live fetch...",
+  "error": "Exit code 1\n/Users/arkstar/Projects/mandate-vault/node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/register-BOkp8V6j.cjs:9\n`)},\"createLog\"),G=ut(W.bgLightYellow(W.black(\" CJS \"))),Tn=ut(W.bgBlue(\" ESM \")),R=new Map,Sn=u(async e=>{if(R.has(e))return R.get(e);if(!await D.promises.access(e).then(()=>!0,()=>!1)){R.set(e,void 0);return}const r=await D.promises.readFile(e,\"utf8\");try{const n=JSON.parse(r);return R.set(e,n),n}catch{throw new Error(`Error parsing: ${e}`)}},\"readPackageJson\"),On=u(e=>...",
+  "timestamp": "2026-06-11T21:35:33.458Z",
+  "retry_count": 2
 }

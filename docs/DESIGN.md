@@ -13,7 +13,8 @@
 | Explorer | `https://sepolia.mantlescan.xyz` (Etherscan family) | HTTP 200; verify via Etherscan V2 API (free key, chainid=5003) |
 | Explorer fallback | explorer.sepolia.mantle.xyz (Blockscout) | 503 at check time — unreliable |
 | OpenRouter free models | `openai/gpt-oss-120b:free` → `qwen/qwen3-next-80b-a3b-instruct:free` → `meta-llama/llama-3.3-70b-instruct:free` (fallback chain) | /api/v1/models |
-| Funding feed (no key) | `https://fapi.binance.com/fapi/v1/fundingRate?symbol=ETHUSDT` + `/fapi/v1/premiumIndex` | live JSON |
+| Funding feed PRIMARY (no key) | Bybit v5: `/v5/market/funding/history?category=linear&symbol=ETHUSDT` + `/v5/market/tickers` | live JSON (2026-06-12); Bybit = Mantle ecosystem exchange (co-host) |
+| Funding feed FALLBACK (no key) | Binance: `/fapi/v1/fundingRate` + `/fapi/v1/premiumIndex` | live JSON; failover so a demo never stalls on one venue |
 
 ## Architecture
 
@@ -157,6 +158,16 @@ Pages: Vaults (factory registry, template cards w/ mandate summary) · Vault det
 | DoraHacks hacker registration + BUIDL form | 6/15 | manual |
 | Mantle TG: ERC-8004 official NFT flow | parallel, non-blocking | stretch linkage |
 | Demo video recording | D4 | script provided; screen capture |
+
+## Byreal Alignment (pitch/roadmap, not build scope)
+
+Bybit-first data sourcing is implemented (above). Byreal itself runs on Solana
+(Byreal CLMM / Perps Agent Skills / RealClaw), so direct integration belongs to
+the Agentic Economy track, not this RWA submission. Pitch treatment:
+- `ISwapVenue` is venue-agnostic by design — a Byreal Perps Agent Skills
+  execution adapter is the named roadmap item for the hedge/execution leg.
+- The agent daemon is packageable as a RealClaw skill (OpenClaw-based) —
+  roadmap slide, one line.
 
 ## Non-Goals Guardrails (do NOT build)
 
