@@ -1,0 +1,11 @@
+{
+  "name": "mandate-vault",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "test": "pnpm -r test",
+    "build": "pnpm -r build"
+  },
+  "packageManager": "pnpm@10.0.0"
+}
