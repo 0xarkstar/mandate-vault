@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cat package.json 2>/dev/null | head -40; echo \\\"===WORKSPACES===\\\"; ls -la; echo \\\"===pnpm/npm?===\\\"; ls -la pnpm-workspace.yaml package-lock.json pnpm-lock.yaml 2>/dev/null\",\"description\"...",
+  "error": "Exit code 1\n{\n  \"name\": \"mandate-vault\",\n  \"private\": true,\n  \"version\": \"0.1.0\",\n  \"type\": \"module\",\n  \"scripts\": {\n    \"test\": \"pnpm -r test\",\n    \"build\": \"pnpm -r build\"\n  },\n  \"packageManager\": \"pnpm@10.0.0\"\n}\n===WORKSPACES===\ntotal 192\ndrwxr-xr-x   17 arkstar  staff    544 Jun 11 22:14 .\ndrwxr-xr-x  124 arkstar  staff   3968 Jun 11 22:02 ..\ndrwxr-xr-x   17 arkstar  staff    544 Jun 11 22:34 .git\n-rw-r--r--    1 arkstar  staff     89 Jun 11 22:02 .gitignore\ndrwxr-xr-x    3 arkstar  staff   ...",
+  "timestamp": "2026-06-11T13:36:39.375Z",
+  "retry_count": 1
+}

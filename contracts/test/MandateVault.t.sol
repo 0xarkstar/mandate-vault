@@ -72,10 +72,22 @@ contract MandateVaultTest is Test {
     // ------------------------------------------------------ deposit/withdraw
 
     function test_DepositMintsShares() public view {
-        assertEq(vault.sharesOf(depositor), DEPOSIT); // $1 share price, $1 mUSD
+        // $1 share price, $1 mUSD; 1000 dead shares carved from the first mint
+        assertEq(vault.sharesOf(depositor), DEPOSIT - 1000);
+        assertEq(vault.sharesOf(address(0xdEaD)), 1000);
         assertEq(vault.totalShares(), DEPOSIT);
         assertEq(vault.sharePrice(), 1e18);
         assertEq(vault.totalValue(), 10_000e18);
+    }
+
+    function test_FirstDepositBelowFloorReverts() public {
+        address fresh = factory.createVault(1, agent);
+        mUSD.mint(rando, 1e18);
+        vm.startPrank(rando);
+        mUSD.approve(fresh, type(uint256).max);
+        vm.expectRevert(abi.encodeWithSelector(MandateVault.FirstDepositTooSmall.selector, 1e17, 1e18));
+        MandateVault(fresh).deposit(1e17); // $0.10 < $1 floor
+        vm.stopPrank();
     }
 
     function test_DepositZeroReverts() public {
@@ -85,16 +97,18 @@ contract MandateVaultTest is Test {
     }
 
     function test_WithdrawRoundtrip() public {
+        uint256 depositorShares = vault.sharesOf(depositor);
         vm.prank(depositor);
-        uint256 out = vault.withdraw(DEPOSIT);
+        uint256 out = vault.withdraw(depositorShares);
         assertApproxEqAbs(out, DEPOSIT, 1e6);
-        assertEq(vault.totalShares(), 0);
+        assertEq(vault.totalShares(), 1000); // dead shares remain locked
     }
 
     function test_WithdrawSellsSleevesToCover() public {
         _rebalance(3000, 7000); // 70% in mMETH
+        uint256 depositorShares = vault.sharesOf(depositor);
         vm.prank(depositor);
-        uint256 out = vault.withdraw(DEPOSIT); // must liquidate mMETH sleeve
+        uint256 out = vault.withdraw(depositorShares); // must liquidate mMETH sleeve
         assertApproxEqRel(out, DEPOSIT, 0.001e18); // within 0.1% (rounding dust)
     }
 

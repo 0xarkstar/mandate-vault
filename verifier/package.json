@@ -2,6 +2,11 @@
   "name": "@mandate-vault/verifier",
   "version": "0.1.0",
   "type": "module",
+  "main": "src/verify.ts",
+  "types": "src/verify.ts",
+  "exports": {
+    ".": "./src/verify.ts"
+  },
   "bin": {
     "mandate-verify": "src/cli.ts"
   },

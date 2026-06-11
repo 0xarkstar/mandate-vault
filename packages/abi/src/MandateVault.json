@@ -776,6 +776,22 @@
   },
   {
     "type": "error",
+    "name": "FirstDepositTooSmall",
+    "inputs": [
+      {
+        "name": "valueIn",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minimum",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InsufficientShares",
     "inputs": []
   },
@@ -823,6 +839,11 @@
   {
     "type": "error",
     "name": "NotOwner",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "Reentrancy",
     "inputs": []
   },
   {

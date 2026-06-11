@@ -37,6 +37,13 @@ contract MandateVault {
     uint256 internal constant BPS = 10_000;
     uint256 internal constant YEAR = 365 days;
 
+    /// First-depositor share-inflation mitigation: a floor on the first deposit
+    /// plus dead shares carved out of the first mint and locked forever.
+    /// (Mainnet design: full ERC-4626 virtual-offset accounting — see DESIGN.md.)
+    uint256 internal constant MIN_FIRST_DEPOSIT_VALUE = 1e18; // $1
+    uint256 internal constant DEAD_SHARES = 1000;
+    address internal constant DEAD_ADDRESS = address(0xdEaD);
+
     address public immutable owner;
     address public immutable feeRecipient;
     IPriceOracle public immutable oracle;
@@ -57,6 +64,15 @@ contract MandateVault {
 
     address public agentIdentityRegistry; // ERC-8004 adapter (official Mantle-issued NFT)
     uint256 public agentIdentityId;
+
+    uint256 private _lock = 1; // simple reentrancy guard
+
+    modifier nonReentrant() {
+        if (_lock != 1) revert Reentrancy();
+        _lock = 2;
+        _;
+        _lock = 1;
+    }
 
     // --------------------------------------------------------------- events
 
@@ -93,6 +109,8 @@ contract MandateVault {
     error ZeroAmount();
     error InsufficientShares();
     error InvalidMandate();
+    error Reentrancy();
+    error FirstDepositTooSmall(uint256 valueIn, uint256 minimum);
 
     // ---------------------------------------------------------- construction
 
@@ -180,21 +198,29 @@ contract MandateVault {
     // ------------------------------------------------------- deposit/withdraw
 
     /// @notice Deposit the safe asset (assets[0], mUSD). v0 single-asset deposits.
-    function deposit(uint256 amount) external returns (uint256 sharesMinted) {
+    function deposit(uint256 amount) external nonReentrant returns (uint256 sharesMinted) {
         if (amount == 0) revert ZeroAmount();
         address safe = _mandate.assets[0];
         uint256 sp = sharePrice(); // pre-deposit share price
         require(MockERC20(safe).transferFrom(msg.sender, address(this), amount), "transferFrom failed");
         uint256 valueIn = (amount * oracle.price(safe)) / WAD;
         sharesMinted = (valueIn * WAD) / sp;
-        sharesOf[msg.sender] += sharesMinted;
+
+        if (totalShares == 0) {
+            // first deposit: enforce a floor and burn dead shares out of the mint
+            if (valueIn < MIN_FIRST_DEPOSIT_VALUE) revert FirstDepositTooSmall(valueIn, MIN_FIRST_DEPOSIT_VALUE);
+            sharesOf[DEAD_ADDRESS] += DEAD_SHARES;
+            sharesOf[msg.sender] += sharesMinted - DEAD_SHARES;
+        } else {
+            sharesOf[msg.sender] += sharesMinted;
+        }
         totalShares += sharesMinted;
         emit Deposited(msg.sender, amount, sharesMinted);
     }
 
     /// @notice Burn shares, receive the safe asset. Sells other sleeves if the
     /// safe-asset balance cannot cover the withdrawal.
-    function withdraw(uint256 shares) external returns (uint256 amountOut) {
+    function withdraw(uint256 shares) external nonReentrant returns (uint256 amountOut) {
         if (shares == 0) revert ZeroAmount();
         if (sharesOf[msg.sender] < shares) revert InsufficientShares();
 
@@ -241,7 +267,7 @@ contract MandateVault {
         string calldata snapshotJson,
         string calldata rawProposalJson,
         string calldata rationale
-    ) external {
+    ) external nonReentrant {
         if (msg.sender != _mandate.agent) revert NotAgent();
         if (killed) revert VaultKilled();
         if (tripped) revert VaultTripped();
@@ -360,7 +386,7 @@ contract MandateVault {
 
     /// @notice Keeper-style public trip: anyone may trigger the drawdown
     /// protection once the share price breaches the mandate floor (layer 3).
-    function tripCheck() external {
+    function tripCheck() external nonReentrant {
         if (killed) revert VaultKilled();
         if (tripped) revert VaultTripped();
         if (!drawdownBreached()) return;
