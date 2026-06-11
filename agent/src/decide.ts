@@ -28,6 +28,12 @@ export interface DecideOptions {
   fundingSymbol: string
   /** When true: skip the clamp, submit a raw out-of-bounds target, expect revert. */
   violate?: boolean
+  /**
+   * Operator-forced allocation (demo setup). Bypasses the LLM only — the
+   * snapshot, clamp and on-chain submission run through the normal pipeline,
+   * so the resulting epoch verifies like any other decision.
+   */
+  forceTarget?: number[]
   /** Optional injected funding (sim uses cached/synthetic funding). */
   funding?: FundingSnapshot
   /** Optional pre-read vault state (sim avoids a double read). */
@@ -84,21 +90,30 @@ export async function decideOnce(opts: DecideOptions): Promise<DecideOutcome> {
   const mandate = vaultState.mandate
   const bounds = { minBps: mandate.minBps, maxBps: mandate.maxBps }
 
-  // LLM proposal (or deterministic fallback when unreachable).
-  const llm = await proposeAllocation(
-    buildSnapshot({ chainId, vault, ts: Math.floor(Date.now() / 1000), funding, vaultState, llmFallback: false }),
-    mandate,
-    openRouterApiKey
-  )
-  const llmFallback = llm === null
-
-  const proposal: Proposal = llm
-    ? llm.proposal
-    : {
-        regime: 'NEUTRAL',
-        targetAllocBps: fallbackAllocation(vaultState.allocBps, bounds),
-        rationale: FALLBACK_RATIONALE
-      }
+  // Proposal source: operator-forced (demo setup) > LLM > deterministic fallback.
+  let proposal: Proposal
+  let llmFallback = false
+  if (opts.forceTarget) {
+    proposal = {
+      regime: 'RISK_ON',
+      targetAllocBps: opts.forceTarget,
+      rationale: 'operator-forced allocation (demo setup): deterministic positioning ahead of the drawdown demonstration'
+    }
+  } else {
+    const llm = await proposeAllocation(
+      buildSnapshot({ chainId, vault, ts: Math.floor(Date.now() / 1000), funding, vaultState, llmFallback: false }),
+      mandate,
+      openRouterApiKey
+    )
+    llmFallback = llm === null
+    proposal = llm
+      ? llm.proposal
+      : {
+          regime: 'NEUTRAL',
+          targetAllocBps: fallbackAllocation(vaultState.allocBps, bounds),
+          rationale: FALLBACK_RATIONALE
+        }
+  }
 
   // The snapshot recorded on-chain must carry the real llmFallback flag.
   const snapshot = buildSnapshot({

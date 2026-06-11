@@ -24,6 +24,13 @@ if [ -z "$MMETH_ADDR" ]; then
   exit 1
 fi
 
+echo "=== Scene 2 setup: deterministic risk-on allocation (verifiable epoch) ==="
+# The trip demo needs risk-sleeve exposure. LLM regime choice is not guaranteed
+# to be risk-on, so force the allocation through the NORMAL pipeline (snapshot +
+# clamp + on-chain log) — the epoch verifies like any other decision.
+FORCE_TARGET="${FORCE_TARGET:-3000,6500,500}"
+pnpm --filter @mandate-vault/agent exec tsx src/main.ts --mode once --force-target "$FORCE_TARGET"
+
 echo "=== Scene 2: crash mMETH price to ${NEW_PRICE} USD ==="
 pnpm --filter @mandate-vault/agent exec tsx src/tools/set-price.ts --asset "$MMETH_ADDR" --price "$NEW_PRICE"
 

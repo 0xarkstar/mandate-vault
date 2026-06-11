@@ -1,6 +1,6 @@
 import type { Address } from 'viem'
-import { mockOracleAbi } from '@mandate-vault/abi'
-import { makeClients } from './chain.js'
+import { mandateVaultAbi, mockOracleAbi } from '@mandate-vault/abi'
+import { makeClients, type Clients } from './chain.js'
 import { readVaultState } from './feeds/vault.js'
 import { decideOnce, type DecideOutcome } from './decide.js'
 import { fetchFunding } from './feeds/funding.js'
@@ -78,6 +78,10 @@ export async function runSim(opts: SimOptions): Promise<DecideOutcome[]> {
 
   const outcomes: DecideOutcome[] = []
 
+  // The previous demo scene may have rebalanced moments ago — respect the
+  // on-chain cooldown before the FIRST step too, not only between steps.
+  await waitForOnchainCooldown(clients, opts.vault, initial.mandate.rebalanceCooldown, startedAt)
+
   for (let i = 0; i < opts.steps; i++) {
     if (Date.now() - startedAt > MAX_WALLCLOCK_MS) {
       throw new Error('sim wall-clock guard exceeded')
@@ -131,6 +135,28 @@ export async function runSim(opts: SimOptions): Promise<DecideOutcome[]> {
   // eslint-disable-next-line no-console -- CLI user-facing output
   console.log(`sim complete: ${outcomes.length} decisions logged.`)
   return outcomes
+}
+
+/** Wait until the vault's on-chain cooldown (lastRebalance + cooldown) has passed. */
+async function waitForOnchainCooldown(
+  clients: Clients,
+  vault: Address,
+  cooldownSec: number,
+  startedAt: number
+): Promise<void> {
+  const lastRebalance = (await clients.publicClient.readContract({
+    address: vault,
+    abi: mandateVaultAbi,
+    functionName: 'lastRebalance'
+  })) as bigint
+  if (lastRebalance === 0n) return // first rebalance is cooldown-exempt
+  const readyAtMs = (Number(lastRebalance) + cooldownSec + 1) * 1000
+  while (Date.now() < readyAtMs) {
+    if (Date.now() - startedAt > MAX_WALLCLOCK_MS) {
+      throw new Error('sim wall-clock guard exceeded while waiting for on-chain cooldown')
+    }
+    await sleep(Math.min(POLL_INTERVAL_MS, readyAtMs - Date.now()))
+  }
 }
 
 /** Sleep one cooldown window (+1s margin) with the wall-clock guard. */

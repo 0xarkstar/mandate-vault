@@ -8,7 +8,7 @@ import { runSim } from './sim.js'
 /**
  * Agent CLI entrypoint.
  *
- *   tsx src/main.ts --mode once [--violate] [--vault 0x..]
+ *   tsx src/main.ts --mode once [--violate] [--force-target 3000,6500,500] [--vault 0x..]
  *   tsx src/main.ts --mode sim --steps 12 [--vault 0x..]
  *
  * Config (PRIVATE_KEY, RPC_URL, VAULT_ADDRESS, OPENROUTER_API_KEY, ORACLE_*) is
@@ -22,8 +22,18 @@ const CliSchema = z.object({
   steps: z.coerce.number().int().min(1).max(100).default(12),
   violate: z.boolean().default(false),
   vault: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
-  seed: z.coerce.number().int().optional()
+  seed: z.coerce.number().int().optional(),
+  /** Comma-separated bps list, e.g. "3000,6500,500" (demo setup; bypasses LLM only). */
+  'force-target': z
+    .string()
+    .regex(/^\d+(,\d+)*$/, 'must be comma-separated integers')
+    .optional()
 })
+
+export function parseForceTarget(raw: string | undefined): number[] | undefined {
+  if (!raw) return undefined
+  return raw.split(',').map((s) => Number.parseInt(s, 10))
+}
 
 function parseCli(argv: string[]): z.infer<typeof CliSchema> {
   const { values } = parseArgs({
@@ -33,7 +43,8 @@ function parseCli(argv: string[]): z.infer<typeof CliSchema> {
       steps: { type: 'string' },
       violate: { type: 'boolean' },
       vault: { type: 'string' },
-      seed: { type: 'string' }
+      seed: { type: 'string' },
+      'force-target': { type: 'string' }
     }
   })
   return CliSchema.parse(values)
@@ -72,7 +83,8 @@ async function run(argv: string[], env: NodeJS.ProcessEnv): Promise<void> {
     openRouterApiKey: cfg.openRouterApiKey,
     chainId: cfg.chainId,
     fundingSymbol: cfg.fundingSymbol,
-    violate: cli.violate
+    violate: cli.violate,
+    forceTarget: parseForceTarget(cli['force-target'])
   })
 }
 
