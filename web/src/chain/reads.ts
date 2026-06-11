@@ -42,22 +42,26 @@ function normalizeMandate(raw: RawMandate): Mandate {
   }
 }
 
-/** Read the full state of a single vault in one multicall batch. */
+/**
+ * Read the full state of a single vault. Plain parallel reads (no multicall3
+ * dependency — local anvil chains don't have the canonical deployment).
+ */
 export async function fetchVaultState(address: `0x${string}`): Promise<VaultState> {
-  const calls = [
-    { address, abi: vaultAbi, functionName: 'mandate' },
-    { address, abi: vaultAbi, functionName: 'currentAllocationBps' },
-    { address, abi: vaultAbi, functionName: 'sharePrice' },
-    { address, abi: vaultAbi, functionName: 'hwmSharePrice' },
-    { address, abi: vaultAbi, functionName: 'totalValue' },
-    { address, abi: vaultAbi, functionName: 'totalShares' },
-    { address, abi: vaultAbi, functionName: 'tripped' },
-    { address, abi: vaultAbi, functionName: 'killed' },
-    { address, abi: vaultAbi, functionName: 'epoch' },
-    { address, abi: vaultAbi, functionName: 'lastRebalance' }
-  ] as const
+  const read = (functionName: string) =>
+    publicClient.readContract({ address, abi: vaultAbi, functionName } as never)
 
-  const results = await publicClient.multicall({ contracts: calls as never, allowFailure: false })
+  const results = await Promise.all([
+    read('mandate'),
+    read('currentAllocationBps'),
+    read('sharePrice'),
+    read('hwmSharePrice'),
+    read('totalValue'),
+    read('totalShares'),
+    read('tripped'),
+    read('killed'),
+    read('epoch'),
+    read('lastRebalance')
+  ])
 
   const [
     rawMandate,
@@ -101,13 +105,10 @@ export async function fetchVaultState(address: `0x${string}`): Promise<VaultStat
 /** ERC20 metadata for one asset (symbol/decimals), tolerant of missing data. */
 export async function fetchTokenMeta(token: `0x${string}`): Promise<{ symbol: string; decimals: number }> {
   try {
-    const [symbol, decimals] = (await publicClient.multicall({
-      contracts: [
-        { address: token, abi: erc20Abi, functionName: 'symbol' },
-        { address: token, abi: erc20Abi, functionName: 'decimals' }
-      ] as never,
-      allowFailure: false
-    })) as unknown as [string, number]
+    const [symbol, decimals] = (await Promise.all([
+      publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'symbol' } as never),
+      publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'decimals' } as never)
+    ])) as unknown as [string, number]
     return { symbol, decimals: Number(decimals) }
   } catch {
     return { symbol: token.slice(0, 6), decimals: 18 }
