@@ -46,11 +46,17 @@ describe('summarizeVault', () => {
       decision(1, [4000, 6000], [4000, 6000]),
       decision(2, [5000, 5000], [5000, 5000])
     ]
-    const fills = [fill('0xaaa', 10), fill('0xbbb', 30)]
+    // fills join by the decisions' tx hashes; a foreign tx (another vault on
+    // the same venue) must NOT count toward this vault's score
+    const fills = [
+      fill(decisions[0]!.txHash, 10),
+      fill(decisions[1]!.txHash, 30),
+      fill('0xffff', 500)
+    ]
     const row = summarizeVault(decisions, fills, MIN, MAX)
 
     expect(row.decisionCount).toBe(2)
-    expect(row.avgImprovementBps).toBe(20)
+    expect(row.avgImprovementBps).toBe(20) // foreign 500bps fill excluded
     expect(row.cageHitRate).toBe(0)
     expect(row.fallbackRate).toBe(0)
     expect(row.score.score).toBeGreaterThan(0)
@@ -70,8 +76,9 @@ describe('summarizeVault', () => {
     expect(row.avgImprovementBps).toBe(0) // no fills
   })
 
-  it('handles an empty vault', () => {
-    const row = summarizeVault([], [], MIN, MAX)
+  it('scores an empty vault 0 — no behavior, no baseline credit', () => {
+    const row = summarizeVault([], [fill('0xaaa', 10)], MIN, MAX)
     expect(row).toMatchObject({ decisionCount: 0, avgImprovementBps: 0, cageHitRate: 0, fallbackRate: 0 })
+    expect(row.score.score).toBe(0)
   })
 })

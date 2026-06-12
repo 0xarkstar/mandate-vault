@@ -47,7 +47,10 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv): Promise<void
   // eslint-disable-next-line no-console -- CLI user-facing output
   console.log(`tripCheck tx=${txHash}`)
   // eslint-disable-next-line no-console -- CLI user-facing output
-  console.log(`tripped=${tripped} allocationBps=${JSON.stringify(allocBps.map(Number))} (expect ~[10000, 0, ...] = 100% safe)`)
+  console.log(
+    `tripped=${tripped} allocationBps=${JSON.stringify(allocBps.map(Number))} ` +
+      '(FREEZE mandate: positions held; DERISK mandate: expect ~[10000, 0, ...])'
+  )
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

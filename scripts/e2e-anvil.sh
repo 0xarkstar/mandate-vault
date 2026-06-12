@@ -67,6 +67,10 @@ echo "$VAULT_OUT"
 VAULT="$(echo "$VAULT_OUT" | awk -F= '/^VAULT_ADDRESS=/{print $2}')"
 [ -n "$VAULT" ] || { echo "vault parse failed"; exit 1; }
 
+# A stale PolicyIndex from a previous run would stamp playbookVersion into
+# pre-learning decisions — start every rehearsal pre-learning (v0).
+rm -f data/policy-index.json
+
 # Common agent env for every subsequent step.
 export VAULT_ADDRESS="$VAULT" ORACLE_ADDRESS="$ORACLE" ORACLE_OWNER_KEY="$DEPLOYER_KEY"
 export RFQ_VENUE_ADDRESS="$VENUE" MM_KEY_TIGHT="$MM_TIGHT_KEY" MM_KEY_WIDE="$MM_WIDE_KEY"
@@ -101,7 +105,6 @@ echo "=== scene 2: RFQ risk-on rebalance (best-quote fill + TCA) ==="
 "$ROOT/scripts/scene2-rfq.sh"
 
 echo "=== learning pass: compile PolicyIndex v1 from the on-chain log ==="
-rm -f data/policy-index.json
 PRIVATE_KEY="$DEPLOYER_KEY" pnpm --filter @mandate-vault/agent exec tsx src/tools/learn.ts \
   --vault "$VAULT" --venue "$VENUE"
 

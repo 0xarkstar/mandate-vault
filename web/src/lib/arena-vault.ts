@@ -31,7 +31,24 @@ export function summarizeVault(
   maxBps: readonly number[]
 ): ArenaRow {
   const decisionCount = decisions.length
-  const { avgImprovementBps } = aggregateFills(fills)
+
+  // No on-chain behavior → nothing to score. Rank below any vault with data
+  // instead of awarding the "did nothing wrong" baseline.
+  if (decisionCount === 0) {
+    return {
+      decisionCount: 0,
+      avgImprovementBps: 0,
+      cageHitRate: 0,
+      fallbackRate: 0,
+      score: { score: 0, execution: 0, mandateFit: 0, autonomy: 0 }
+    }
+  }
+
+  // QuoteFilled events are venue-wide; only the fills settled inside THIS
+  // vault's rebalance txs belong to its score.
+  const decisionTxs = new Set(decisions.map((d) => d.txHash.toLowerCase()))
+  const vaultFills = fills.filter((f) => decisionTxs.has(f.txHash.toLowerCase()))
+  const { avgImprovementBps } = aggregateFills(vaultFills)
 
   const cageHitRateValue = mean(
     decisions.map((d) => {
