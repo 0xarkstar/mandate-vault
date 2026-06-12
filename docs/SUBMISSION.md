@@ -126,21 +126,87 @@ native-asset demand.
 | Execution & demo 5 | Deployed, verified, live site, repeatable RFQ + scenes |
 | GC: ecosystem contribution | Onboards capital + liquidity onto Mantle; flows: agent gas, sticky TVL, native-asset & MM-network demand |
 
-## Build status / remaining
+## Honest boundaries (what we do NOT claim)
 
-DONE: contracts (26 tests) · clamp-core (13) · agent Bybit-first (44) ·
-verifier (19) · web (38) · full local E2E rehearsal (3 scenes + sim + web).
+State these before a judge has to ask:
 
-REMAINING BUILD (≈1.5 days): **RFQ venue (EIP-712 signed quotes + atomic fill
-behind ISwapVenue) + 2 demo MM bots + slippage-bound gating + TCA recording**
-(new core pillar) · breach FREEZE/DERISK mode field · onboarding intent→mandate
-flow · `--model` flag + arena execution runs · web upgrades (onboarding flow,
-execution timeline w/ fill-vs-mid, leaderboard, behavior badges) · template
-labels.
+- **No chain-wide stability or MEV reduction.** Protection applies to flow
+  routed through this rail (the vaults' own rebalances/liquidations and any
+  taker using `fillSignedQuote`). Other pools' trades are untouched. The
+  ecosystem effect is the *quality of capital that arrives* (rule-bound, no
+  panic dumps, non-toxic flow), not a chain-level fix. Seatbelts don't make
+  roads safer — they change who's willing to drive.
+- **No alpha, ever.** The AI decides HOW capital moves, never WHETHER. The
+  moment a vault promises arbitrage/returns it becomes a fund claiming alpha —
+  the exact trap this design exists to dodge (operator's own market-making
+  research: public logic is competed away; latency games need infra we don't
+  claim to have).
+- Demo MMs are ours (labeled). Learning engine ships as a thin slice +
+  roadmap. Reviewed + tested, NOT audited. Testnet TCA (+4bps vs mid)
+  demonstrates the mechanism, not market-beating execution.
 
-BLOCKED ON USER: Sepolia faucet (deployer 0x23128FBb…0528, agent
-0x9b1f06e6…73b8) · OpenRouter key (agent/.env) · Etherscan key
-(contracts/.env). Real-LLM path untested until the key arrives.
+## Cold start (the "who uses this first" answer)
 
-THEN: deploy+verify → arena/timeline population on Sepolia → CF Pages →
-gas measurement → README/pitch → video → DoraHacks submission (buffer 6/15).
+The product needs NO network effect to deliver: depositor #1 gets the full
+value (cage + RFQ execution + receipts) at TVL zero — unlike a DEX, value is
+per-user. The one network dependency (MMs) is self-interested: vault rebalance
+flow is uninformed, the flow MMs pay to fill.
+
+1. **First niche: DAO/project treasuries on Mantle** — they already hold
+   mUSD/mETH/MNT and have a real pain: treasury management that a community
+   can *verify*, not just trust. Governance votes the mandate; anyone replays
+   the decisions.
+2. **Arena = the funnel.** "Same rules, same money, different AI brains —
+   scored on-chain" is consumable spectacle before anyone deposits.
+3. **On-chain track record replaces reputation** — the usual vault cold-start
+   barrier (trust accrual time) is reduced by the product's own proof layer.
+
+## Roadmap (the kick): we don't hunt — we sell the hunting ground and the maps
+
+- **v1 (LIVE on Mantle Sepolia):** mandate cage + RFQ execution + replay
+  verification + Agent Arena. Confidential decisions v0 (viewing-key selective
+  disclosure: strategy context encrypted on-chain, integrity still publicly
+  verifiable; auditors/LPs hold the key).
+- **v2 — toxicity-aware venue:** every fill's markout is already on-chain
+  (QuoteFilled TCA). Compile per-flow-source toxicity scores, publish them,
+  let MMs tier quotes (vault flow tight, aggregator flow wide). Aggregator
+  integration becomes safe *because* flow is priced by toxicity — the venue
+  that prices poison instead of drinking it. Learning's honest ceiling
+  (operator's research): classification & defense, never beating informed
+  flow — so that is exactly what we build.
+- **v3 — mandate prime brokerage:** lease mandate-caged capital to external
+  operators who own real latency/infrastructure edge (arbitrageurs, MM desks).
+  Their edge, our risk cage, fee-on-flow for the rail. Arena is the public
+  selection mechanism for who gets capital. The venue NEVER prop-trades
+  against its own flow — that conflict (the dark-pool scandal pattern) is
+  constitutionally out, which is precisely why MMs can trust the data layer.
+- **v2.5 — "dark pool with receipts":** zk-proven mandate compliance without
+  revealing allocations (the clamp is a small arithmetic circuit; Mantle gas
+  makes per-decision verification economical) + TEE-attested harness +
+  sealed-bid RFQ. HumidiFi-class private execution, with the one thing dark
+  pools never had: public proof of execution quality.
+
+## Build status (2026-06-13)
+
+ALL BUILT AND LIVE. 230+ tests green (contracts 41 forge · agent 84 ·
+web 73 · verifier 19 · clamp-core 13), tsc clean, E2E one-command
+(`scripts/e2e-anvil.sh`).
+
+- **Mantle Sepolia (chainId 5003), all 10 contracts source-verified on
+  mantlescan**: factory `0xF6b02eaF2f3a08bEf0db2E2293C0B07eFf4BDB0f`,
+  RFQVenue `0x6555A9429DCa1E0967744e0F55B2891E56f2D7d1` (full table in
+  HANDOFF §6a).
+- **Live story on-chain**: MandateViolation revert proven · epochs with real
+  LLM proposals (gpt-oss-120b, gemma-4-31b) RFQ-filled at **+4bps vs oracle
+  mid** (TCA on-chain) · honest deterministic-fallback epoch recorded
+  (nemotron 429'd — and the snapshot says so) · FREEZE trip with positions
+  held · third-party replay VERIFIED ✓ / 1-char tamper TAMPERED ✗.
+- **Measured gas**: hold decision ~163k (0.021 MNT) · RFQ 2-fill decision
+  272,949 gas (0.085 MNT, testnet 50 gwei; L1 data fee ~84%) — a fully
+  logged, replay-verifiable AI decision costs cents on Mantle.
+- **Dashboard live**: https://mandate-vault.pages.dev (vaults, cage diagram,
+  TCA timeline, Arena leaderboard, in-browser Verify).
+- **Repo public**: https://github.com/0xarkstar/mandate-vault
+
+REMAINING: pitch text + 2-min video + DoraHacks submission (buffer 6/15,
+deadline 6/16 00:59 KST).
