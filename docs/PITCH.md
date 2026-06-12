@@ -118,7 +118,8 @@ asset is one more line in a mandate — the rail's usefulness compounds with
 the RWA catalogue.
 
 **Business model — exact, and live in the contract today.** No token, by
-design. Every vault minted by the factory — template or custom — pays the
+design (any future token must capture organic fee flow at defined
+milestones — never emissions that rent TVL). Every vault minted by the factory — template or custom — pays the
 platform (feeRecipient is fixed to the factory owner): **1%/yr management
 fee** (share dilution, accrued each rebalance) + **10% performance fee on
 gains above a 4.5%/yr T-bill hurdle** (high-water-mark, no double-charging).

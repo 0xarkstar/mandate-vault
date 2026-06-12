@@ -93,9 +93,13 @@ telemetry). Demo scene 1 IS a live jailbreak simulation.
 
 ## Business model
 
-No token by design. Fee on flow (execution/management fee collected by the
-contract). MNT value flows: recurring agent gas, sticky onboarded TVL,
-native-asset demand.
+No token by design — today. Fee on flow (1%/yr mgmt + 10% perf above T-bill
+hurdle, live in the contract; every factory vault pays the platform). MNT
+value flows: recurring agent gas, sticky onboarded TVL, native-asset demand.
+Token stance (operator-amended 2026-06-13): issuance is permissible only
+once organic fee flow exists to capture and a complete milestone structure
+defines what the token captures — value-capture, never TVL-rental emissions.
+Full reasoning + every positioning defense: docs/STRESS-TEST-QA.md.
 
 ## What judges receive (the 5 deliverables)
 

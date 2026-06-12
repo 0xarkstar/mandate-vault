@@ -267,13 +267,28 @@ the web preview. For manual scene-by-scene runs, populate `agent/.env` and use
 `scripts/scene{1..4}-*.sh` (they self-load `.env` only when VAULT_ADDRESS is
 not exported).
 
-## 9. Hard rules (operator standing preferences) — unchanged
+## 9. Hard rules (operator standing preferences)
 
 Immutability; small files; zod-validate external input; no hardcoded secrets;
-≥80% coverage intent; **no token, fee-on-flow**; **AI does HOW never
-WHETHER**; no LLM on the execution path; honesty in submission (reviewed+
-tested NOT audited; demo MMs are ours — README says so); don't re-open frozen
+≥80% coverage intent; **AI does HOW never WHETHER**; no LLM on the execution
+path; **the venue never prop-trades its own flow** (constitutional — conflict
+of interest kills the data moat); honesty in submission (reviewed+tested NOT
+audited; demo MMs are ours — README says so); don't re-open frozen
 positioning; this is NOT a Verse8 project.
+
+**Token rule (AMENDED 2026-06-13 by operator):** no token today =
+credibility asset; emissions-to-rent-TVL = permanently out. A token MAY be
+issued later, but ONLY when all three hold: (a) organic fee-generating flow
+exists (a token captures value at a bottleneck per the operator's
+value-capture research — never bootstraps value that doesn't exist);
+(b) a complete roadmap/milestone structure defines exactly what it captures
+and why a token beats plain fee accrual for that job; (c) it cannot
+compromise the no-alpha / no-prop-trading constitution.
+
+**Defense register:** every hard objection raised in the pre-submission
+stress-test (fund? v2 LP? why MMs? revenue ceiling? owner abandonment?
+chain stability? aggregators? direct arb?) is answered canonically in
+**docs/STRESS-TEST-QA.md** — read it before re-litigating any of them.
 
 ## 10. Scorecard targets — unchanged
 
