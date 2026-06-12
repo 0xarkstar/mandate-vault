@@ -213,11 +213,17 @@ ALL FOUR USER ITEMS LANDED 2026-06-13 — executed same-session:
    script --broadcast --resume --verify --private-key needed; demo vault
    matched via identical bytecode).
 4. ~~CF Pages~~ DEPLOYED: **https://mandate-vault.pages.dev** (project
-   `mandate-vault`, wrangler authed 0930bbc). Web ships official RPC +
-   batchSize-5 transport — a fresh viewer's arena load (~10 requests) fits
-   the per-IP budget (verified from a second IP via OCI; the DEV machine's
-   IP is rate-limit-burned across all free gateways from this session, so
-   local checks of the live site will 429 — that is expected, not a bug).
+   `mandate-vault`, wrangler authed 0930bbc). The first deploy rate-limited
+   real viewers; root causes found + fixed (commit `d71c958`):
+   - ~40 eth_calls/page → **multicall3 aggregation** (canonical address,
+     live on Mantle Sepolia; `scripts/multicall3-runtime.hex` is injected
+     into anvil by e2e-anvil.sh via anvil_setCode)
+   - log scans from genesis → 4,400+ chunked getLogs → **VITE_START_BLOCK**
+     (deploy block 39860090) bounds every scan
+   - arena re-scanned the shared venue per vault → **per-venue fills cache**
+   Verified worst-case: arena loads real data in ~20s from a fully
+   rate-limit-burned IP. ⚠️ Hash routing gotcha: hash-only navigation never
+   reloads the page — an old bundle keeps running until a hard reload.
 
 STILL OPTIONAL: free keyed RPC (Tenderly/Alchemy) for heavy demo-video use;
 Mantle TG/Discord ERC-8004 registration.
