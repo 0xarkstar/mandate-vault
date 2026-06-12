@@ -6,110 +6,137 @@
 
 ## One-liner
 
-**MandateVault — the stability rails that make agentic asset management safe
-enough for institutions, and cheap enough to fully audit only on Mantle.**
+**MandateVault — the smooth on-ramp for institutional capital onto Mantle: AI
+executes, the mandate protects, the chain proves best execution.**
 
-Money that must not break is guarded by the chain; the rest is managed by AI —
-under an on-chain mandate it cannot escape.
+We do not decide what to invest in. We make institutional/RWA capital move onto
+Mantle safely and without slippage — AX powers the execution and onboarding, the
+mandate caps the risk, the chain records the proof.
 
-## The product (final form)
+## Positioning (the pivot)
 
-**Positioning**: we do not manage assets, and we do not claim alpha. We are the
-delegation-trust infrastructure — what custody (Fireblocks) did for *holding*,
-MandateVault does for *delegating*.
+NOT an AI fund manager. NOT alpha. We are an **AI-powered execution &
+onboarding rail** for RWA capital. The AI's job is HOW capital moves
+(execution, liquidity sourcing, onboarding translation) — never WHETHER to
+invest. This dodges the alpha trap and makes the AI's output objectively
+measurable (slippage bps, fill quality), which is a stronger answer to the
+"is the AI output verifiable?" criterion than "was the allocation good?".
 
-**The five rails** (all chain-enforced):
-1. **Separation of powers** — the agent key can ONLY call `rebalance()`; it can
-   never withdraw, transfer, or change the mandate. Worst case of total agent
-   compromise = suboptimal allocation within bounds.
-2. **Mandate enforcement** — per-asset min/max bounds, whitelist, cooldown
-   re-checked on-chain at execution; violations revert.
-3. **Autonomous circuit breaker** — drawdown floor vs HWM; permissionless
-   `tripCheck()` de-risks to the safe asset and suspends the agent with no
-   human latency.
-4. **Evidence generation** — every decision logged with full input snapshot,
-   raw LLM proposal, committee memos and rationale; third-party replay
-   verification via the shared clamp module. Compliance becomes proof, not claim.
-5. **Manager portability** — `setAgent()` swaps the manager without
+What custody (Fireblocks) did for *holding*, MandateVault does for *moving and
+delegating* institutional capital on-chain.
+
+## What it makes smooth (the three goals)
+
+| Smooth what | What the AI directly does (AX) | Measured by |
+|---|---|---|
+| **Onboarding** — friction of institutional capital entering | Translate plain intent ("park 70% in T-bills, yield-hunt the rest, never below 6-month runway") into a safe on-chain mandate + initial positioning. Removes the Web3 operational barrier. | UX scorecard line |
+| **Liquidity / execution** — slippage & MEV at trade time | **RFQ orchestration**: solicit signed firm quotes from MMs → pick best vs oracle mid → atomic fill. Zero slippage, sandwich-immune. | fill price vs mid, improvement bps |
+| **Trust / proof** — fear of letting AI touch institutional money | Mandate caging + on-chain best-execution proof + replay verification. | on-chain evidence |
+
+## AX — the AI's three concrete jobs
+
+1. **Onboarding translation** — intent → on-chain mandate + initial positioning.
+2. **RFQ / liquidity orchestration & smart execution** — source quotes, compare
+   to oracle mid, route, atomic fill; slippage-bound gating (only fill within
+   the mandate's allowed slippage vs mid, else freeze — no dumping into thin
+   books).
+3. **Post-trade TCA & monitoring narration** — fills vs mid, peg/liquidity
+   flags, best-execution report.
+
+The AI decides HOW to execute, never WHETHER to invest. Numbers stay
+deterministic (clamp + on-chain checks); execution-quality and the audit
+narrative are the LLM's measurable, irreplaceable work.
+
+## Safety rails (the enabler, already built — makes it safe to let AI move money)
+
+1. **Separation of powers** — agent key can ONLY call `rebalance()`/execute;
+   never withdraw, transfer, or change the mandate. Total agent compromise =
+   suboptimal in-bounds execution, never exfiltration.
+2. **Mandate enforcement** — per-asset bounds, whitelist, cooldown, allowed
+   slippage re-checked on-chain at execution; violations revert.
+3. **Breach freeze** — drawdown floor vs HWM; permissionless trip. Default
+   FREEZE (suspend the agent, hold positions — no forced dump into a crash);
+   optional DERISK via RFQ only within the slippage bound. Crash protocol is
+   itself a mandate field (the institution pre-commits its own policy).
+4. **Evidence & best-execution proof** — every decision + execution logged with
+   input snapshot, plan, fill vs mid; third-party replay via the shared module.
+5. **Manager portability** — `setAgent()` swaps the execution agent without
    liquidation; track record accrues to the vault + ERC-8004 identity.
 
-**Specialization**: survival-first management — the hard wall between
-"money that must not break" and "money that may work":
-- Retail door: template vaults = emergency-fund floor (robo-advisor UX)
-- Org door: custom mandates = runway floor (projects/DAOs) / IPS (institutions)
-- Same contract fields, different labels: `minBps[safe]` = the floor.
+## The kick — Agent Arena (execution benchmarking)
 
-**AX layer (not LLM-pasting)**: the agent runs an **AI investment committee** —
-Market Analyst, RWA Credit Analyst, Compliance Officer, CIO synthesis — four
-LLM roles producing audit-grade committee minutes per decision, anchored
-on-chain. Numbers stay deterministic (clamp + on-chain checks); language work
-(analysis, compliance notes, minutes) is the LLM's irreplaceable job. This is
-the middle-office paper trail institutions actually pay for, automated.
+Identical mandates, identical market data, different LLMs (gpt-oss vs qwen vs
+llama), chain-scored on **execution quality**: slippage achieved, quote-selection
+quality, mandate-compliance rate, breach response. We do not claim the winner
+has alpha; we claim each agent's execution behavior is provably benchmarked.
+This is the hackathon's own thesis — on-chain AI benchmarking, the "Turing
+Test" — implemented as a product, now on the measurable axis (execution) rather
+than the unmeasurable one (allocation).
 
-**The kick — Agent Arena**: identical mandates, identical market data,
-different LLMs (gpt-oss vs qwen vs llama), chain-scored **behavior**:
-mandate-compliance rate, cage-hit count, drawdown response, memo consistency.
-We do not claim the winner has alpha; we claim the loser's behavior is now
-provable. This is the hackathon's own thesis (on-chain AI benchmarking — the
-"Turing Test") implemented as a product.
+## Security thesis
 
-**Security thesis**: assume the LLM is already jailbroken. Defense is not
-prevention but futility — max reward of a successful jailbreak = burning the
-pre-committed risk budget (then the trip fires). Zero exfiltration, zero
-concealment (clamped deltas and reverts are on-chain attack telemetry).
-Demo scene 1 IS a live jailbreak simulation.
+Assume the LLM is already jailbroken. Defense is futility, not prevention: max
+reward of a successful jailbreak = suboptimal in-bounds execution + burning the
+pre-committed risk budget (then the breach freeze fires). Zero exfiltration,
+zero concealment (clamped deltas, reverts, and fill-vs-mid are on-chain attack
+telemetry). Demo scene 1 IS a live jailbreak simulation.
 
-**Why Mantle (necessity, not choice)**:
-1. Radical auditability economics — several KB of evidence per decision is
-   cents on Mantle vs dollars on L1 (to be MEASURED from Sepolia gas receipts
-   and published in the README).
-2. The RWA collateral set (USDY/mUSD, mETH, fBTC) is native here.
-3. ERC-8004 agent identity is being standardized here (this hackathon).
-4. Completes Mantle's own TradFi-distribution thesis: assets existed,
-   delegation rails did not.
+## Why Mantle (necessity, not choice)
 
-**Business model**: no token by design. Management fee + performance fee above
-the T-bill hurdle, collected by the contract. MNT value flows: recurring agent
-gas, sticky delegated TVL, native-asset demand.
+1. Mantle's own thesis is "the distribution layer connecting TradFi with
+   on-chain liquidity" — we are the AI on-ramp that thesis was missing.
+2. RFQ counterparties = the Bybit market-maker network Mantle is anchored to.
+3. Native RWA collateral (USDY/mUSD, mETH, fBTC) lives here.
+4. Radical auditability economics — KB of execution evidence per decision is
+   cents on Mantle vs dollars on L1 (to be MEASURED from Sepolia gas receipts).
+5. ERC-8004 agent identity is being standardized here (this hackathon).
+
+## Business model
+
+No token by design. Fee on flow (execution/management fee collected by the
+contract). MNT value flows: recurring agent gas, sticky onboarded TVL,
+native-asset demand.
 
 ## What judges receive (the 5 deliverables)
 
 1. **Public GitHub repo** — contracts (Foundry), agent, verifier, clamp-core,
    web; README with architecture, measured gas economics, security model
-   (hackathon-honest: reviewed + tested, not audited; mainnet prerequisites
-   listed).
-2. **Mantle Sepolia deployment** — factory + template vaults, source-verified
-   on mantlescan; addresses in README + submission.
-3. **Live frontend (CF Pages)** — vault list/detail, mandate visualization,
-   committee minutes tabs, behavior stream (cage diagram, allocation chart,
-   behavior badges), Arena leaderboard, in-browser Verify.
-4. **Demo video (≥2 min)** — scene 1 jailbreak→revert, scene 2 crash→auto-trip,
-   scene 3 verify ✓ / tamper ✗, scene 4 arena leaderboard walk.
+   (hackathon-honest: reviewed + tested, not audited; demo MMs are ours; real
+   MM network + mainnet prerequisites listed).
+2. **Mantle Sepolia deployment** — factory + template vaults + RFQ venue,
+   source-verified on mantlescan; addresses in README + submission.
+3. **Live frontend (CF Pages)** — onboarding flow, vault list/detail, mandate
+   visualization, execution timeline (plan, quotes, fill vs mid, improvement
+   bps), behavior badges, Arena execution leaderboard, in-browser Verify.
+4. **Demo video (≥2 min)** — scene 1 onboarding intent→mandate, scene 2 RFQ
+   zero-slippage fill (quotes → best pick → atomic), scene 3 jailbreak→revert +
+   breach freeze, scene 4 verify ✓ / tamper ✗ + arena leaderboard.
 5. **Submission text** — RWA-track triage vocabulary up front (USDY/mETH,
-   portfolio/mandate/risk), five rails, committee, arena, fee model, Mantle
-   necessity argument.
+   onboarding/execution/best-execution/risk), three smooth-goals, RFQ, rails,
+   arena, fee model, Mantle necessity argument.
 
 ## Scorecard mapping
 
 | Criterion | Answer |
 |---|---|
-| AI×RWA integration depth 15 | Committee pipeline drives portfolio decisions on USDY-family/mETH; outputs verifiable (rail 4) |
-| Mantle integration 10 | Necessity argument + measured gas economics + native assets |
-| Compliance awareness 10 | Mandate=IPS, compliance officer role, deposit gating pattern, audit-grade minutes |
-| Path B application 10 | Defined assets, defined users (retail floor / org runway), end-to-end UX |
-| Execution & demo 5 | Deployed, verified, live site, repeatable scenes |
-| GC: ecosystem contribution | Flows: agent gas, sticky TVL, native-asset demand; grantee-treasury GTM |
+| AI×RWA integration depth 15 | AI-driven execution & onboarding of USDY-family/mETH; output measurable (slippage/fill) and verifiable (rail 4) |
+| Mantle integration 10 | AI on-ramp for Mantle's distribution thesis + Bybit-MM RFQ + measured gas + native assets |
+| Compliance awareness 10 | Mandate=IPS, best-execution proof (TCA), deposit gating, on-chain audit trail |
+| Path B application 10 | Defined assets, defined users (retail floor / institutional onboarding), end-to-end onboarding→execution UX |
+| Execution & demo 5 | Deployed, verified, live site, repeatable RFQ + scenes |
+| GC: ecosystem contribution | Onboards capital + liquidity onto Mantle; flows: agent gas, sticky TVL, native-asset & MM-network demand |
 
 ## Build status / remaining
 
 DONE: contracts (26 tests) · clamp-core (13) · agent Bybit-first (44) ·
-verifier (19) · web (38) · full local E2E rehearsal (all 3 scenes + sim + web).
+verifier (19) · web (38) · full local E2E rehearsal (3 scenes + sim + web).
 
-REMAINING BUILD (≈1 day): committee pipeline (ProposalSchema.memos — no
-contract change) · `--model` flag + arena runs · web upgrades (committee tabs,
-cage diagram, allocation chart, behavior badges, leaderboard, runway display,
-separation-of-powers card) · template renaming (Runway Guardian / Builder
-Treasury) · agent treasury-context prompts.
+REMAINING BUILD (≈1.5 days): **RFQ venue (EIP-712 signed quotes + atomic fill
+behind ISwapVenue) + 2 demo MM bots + slippage-bound gating + TCA recording**
+(new core pillar) · breach FREEZE/DERISK mode field · onboarding intent→mandate
+flow · `--model` flag + arena execution runs · web upgrades (onboarding flow,
+execution timeline w/ fill-vs-mid, leaderboard, behavior badges) · template
+labels.
 
 BLOCKED ON USER: Sepolia faucet (deployer 0x23128FBb…0528, agent
 0x9b1f06e6…73b8) · OpenRouter key (agent/.env) · Etherscan key
