@@ -117,10 +117,35 @@ versus dollars on L1. As tokenized stocks and ETFs land on Mantle, each new
 asset is one more line in a mandate — the rail's usefulness compounds with
 the RWA catalogue.
 
-**Business model.** No token, by design. Fee-on-flow: management/performance
-fees accrue to the platform contract; every unit of value the rail creates
-lands in Mantle-native assets (gas, mUSD/mETH/MNT mandate demand, sticky
-institutional TVL).
+**Business model — exact, and live in the contract today.** No token, by
+design. Every vault minted by the factory — template or custom — pays the
+platform (feeRecipient is fixed to the factory owner): **1%/yr management
+fee** (share dilution, accrued each rebalance) + **10% performance fee on
+gains above a 4.5%/yr T-bill hurdle** (high-water-mark, no double-charging).
+Revenue scales with TVL, which is why the entire product optimizes for one
+variable: capital's willingness to come. Roadmap revenue (not yet in code,
+say so): per-fill venue fee, toxicity-data subscriptions (v2), prime-
+brokerage fees (v3).
+
+**Mainnet asset map (testnet mocks are stand-ins — swap addresses, zero
+structural change).** Each sleeve has a REAL yield source on Mantle:
+
+| Sleeve | Testnet stand-in | Mainnet asset | Real yield |
+|---|---|---|---|
+| Safety floor | mUSD | **USDY** (Ondo T-bill) + USDT/USDC | ~4-5% T-bill |
+| Carry | mMETH | **mETH / cmETH** — Mantle's official LST/restaking | ~3-4% staking |
+| Treasury | mMNT | WMNT (+ Rewards Station) | MNT incentives |
+
+Holding mETH in a mandate IS the connection to Mantle's official staking —
+"T-bill floor, caged carry." Pair-vaults (ETH↔mETH, USDT↔USDY) are just
+mandates with peg-risk bounds.
+
+**Known-unresolved register (we list these before you ask).** Mock oracle →
+Chainlink/Pyth on mainnet · demo MMs ours → permissionless quotes + benign
+flow recruit real MMs · single-EOA owner → multisig/governance + timelocked
+resume (depositor withdrawals are NEVER blocked, even tripped/killed — the
+escape hatch is a code invariant, not a promise) · per-fill venue fee
+switch → small contract change · unaudited → audit before mainnet.
 
 **Roadmap — we don't hunt; we sell the hunting ground and the maps.**
 v2: toxicity-aware venue — per-flow markout scores compiled from on-chain
