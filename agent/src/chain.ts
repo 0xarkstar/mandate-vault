@@ -48,8 +48,18 @@ function transportFor(rpcUrl: string) {
   return http(rpcUrl, { batch: { batchSize: 5, wait: 50 }, retryCount: 6, retryDelay: 15_000 })
 }
 
-/** Build a public (read) + wallet (write) client pair for a given signer. */
-export function makeClients(rpcUrl: string, chainId: number, privateKey: `0x${string}`): Clients {
+/**
+ * Build a public (read) + wallet (write) client pair for a given signer.
+ * `writeRpcUrl` optionally routes writes through a different endpoint — free
+ * public gateways have tiny per-IP budgets, and splitting the read burst from
+ * the tx path across two endpoints keeps a full decision under both limits.
+ */
+export function makeClients(
+  rpcUrl: string,
+  chainId: number,
+  privateKey: `0x${string}`,
+  writeRpcUrl?: string
+): Clients {
   const chain = mantleSepolia(rpcUrl, chainId)
   const account = privateKeyToAccount(privateKey)
   const publicClient = createPublicClient({ chain, transport: transportFor(rpcUrl) })
@@ -57,7 +67,7 @@ export function makeClients(rpcUrl: string, chainId: number, privateKey: `0x${st
   // inside JSON-RPC batches; a tx is one request anyway.
   const walletClient = createWalletClient({
     chain,
-    transport: http(rpcUrl, { retryCount: 6, retryDelay: 15_000 }),
+    transport: http(writeRpcUrl ?? rpcUrl, { retryCount: 6, retryDelay: 15_000 }),
     account
   })
   return { chain, publicClient, walletClient, account }

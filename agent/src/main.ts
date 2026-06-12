@@ -108,7 +108,7 @@ async function run(argv: string[], env: NodeJS.ProcessEnv): Promise<void> {
   }
 
   // mode === 'once'
-  const clients = makeClients(cfg.rpcUrl, cfg.chainId, cfg.privateKey)
+  const clients = makeClients(cfg.rpcUrl, cfg.chainId, cfg.privateKey, cfg.rpcUrlWrite)
   await decideOnce({
     clients,
     vault: cfg.vaultAddress,

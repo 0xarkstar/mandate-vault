@@ -20,6 +20,8 @@ const hexPrivateKey = z
 const EnvSchema = z.object({
   PRIVATE_KEY: hexPrivateKey,
   RPC_URL: z.string().url().default(DEFAULT_RPC_URL),
+  /** Optional separate endpoint for txs (split rate budgets across gateways). */
+  RPC_URL_WRITE: z.string().url().optional(),
   CHAIN_ID: z.coerce.number().int().positive().default(DEFAULT_CHAIN_ID),
   VAULT_ADDRESS: hexAddress,
   OPENROUTER_API_KEY: z.string().min(1, 'OPENROUTER_API_KEY is required'),
@@ -36,6 +38,7 @@ const EnvSchema = z.object({
 export type AgentConfig = {
   privateKey: `0x${string}`
   rpcUrl: string
+  rpcUrlWrite?: string
   chainId: number
   vaultAddress: `0x${string}`
   openRouterApiKey: string
@@ -63,6 +66,7 @@ export function loadConfig(env: NodeJS.ProcessEnv, vaultOverride?: string): Agen
   return {
     privateKey: e.PRIVATE_KEY as `0x${string}`,
     rpcUrl: e.RPC_URL,
+    rpcUrlWrite: e.RPC_URL_WRITE,
     chainId: e.CHAIN_ID,
     vaultAddress: e.VAULT_ADDRESS as `0x${string}`,
     openRouterApiKey: e.OPENROUTER_API_KEY,
