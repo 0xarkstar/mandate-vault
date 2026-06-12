@@ -142,23 +142,52 @@ enforcement layers). ALL OF THIS IS NOW IMPLEMENTED — see §4.
    models on Sepolia (the local demo chain has one active vault).
 4. `agent/data/` is gitignored (runtime PolicyIndex artifact — never commit).
 
-## 6. BLOCKED ON USER (Sepolia/live track) — unchanged
+## 6a. DEPLOYED — Mantle Sepolia (2026-06-12, live)
 
-1. **Sepolia faucet MNT** → deployer `0x23128FBb14aB0d9b6e6Ca41b4a39916b13010528`
-   + agent `0x9b1f06e60Ca1421e839b122298352a16ad3673b8`
-   (https://faucet.sepolia.mantle.xyz)
+| Contract | Address |
+|---|---|
+| mUSD | `0x4cDdc6d4673094E665a86286066cfC7B7652D9bF` |
+| mMETH | `0xF23843E345415524A82fA80B5904ccEbeC495DE0` |
+| mMNT | `0x4bF74dba5e870e104AdB504293F9CFF44d9BD669` |
+| MockOracle | `0x40C8f4D0A5f903eEF9167fa293453edBEdb40747` |
+| **RFQVenue** | `0x6555A9429DCa1E0967744e0F55B2891E56f2D7d1` |
+| **VaultFactory** | `0xF6b02eaF2f3a08bEf0db2E2293C0B07eFf4BDB0f` |
+| Conservative | `0x511716CEf7dC3ea22228bD74fee6683ecBEc1ACb` |
+| Balanced | `0x52244F53E303891c948Fab0AF5495CdD70566008` |
+| Aggressive | `0x9037cE82381B8abE673B9A3EA9517b195506B54B` |
+| Demo vault (60s, FREEZE) | `0xBd5A3F03ed0488262b4bE31d9854CaF3c442de14` |
+
+MM burners (1 MNT each, keys in `agent/.env`): tight
+`0x71AbD3419831185bb722de9e758303982F2b0a0a`, wide
+`0xD6fCB620A3A780695007CA0684f802b78a6d3144`. `agent/.env` fully configured
+for Sepolia (placeholder `OPENROUTER_API_KEY` → deterministic fallback until
+the real key arrives). `web/.env.production` carries the VITE_ values.
+⚠️ RPC reality (hard-won): the official `rpc.sepolia.mantle.xyz` rate-limits
+per-IP on a sliding window — a vault-state read (13+ eth_calls) trips it, and
+once tripped it stays limited for minutes. Fixes shipped: viem transports now
+batch + retry (agent chain.ts, verifier fetch.ts, web already batched), and
+`agent/.env` RPC_URL points at **https://mantle-sepolia.drpc.org** (alive,
+chainId 5003; blastapi 403s, omniatech 521s). Two consecutive `cast send`s
+from one key can also race the sequencer nonce ("nonce too low") — retry.
+
+## 6. BLOCKED ON USER (Sepolia/live track)
+
+1. ~~Sepolia faucet MNT~~ DONE 2026-06-12 (10 MNT each; deploy consumed ~1).
 2. **OpenRouter free API key** → `agent/.env OPENROUTER_API_KEY`. Real-LLM
    path (proposer AND the new reviewer) is still UNTESTED — verify FIRST.
 3. **Etherscan API key** (V2, chainid 5003) → `contracts/.env
    ETHERSCAN_API_KEY` for mantlescan verification.
+4. **CF Pages deploy needs explicit user go-ahead** (publishing = public
+   surface). Build is ready (`web/dist` with Sepolia env baked):
+   `cd web && npx wrangler pages project create mandate-vault
+   --production-branch=main && npx wrangler pages deploy dist
+   --project-name=mandate-vault --branch=main` (wrangler already authed as
+   0930bbc@gmail.com).
 
-When unblocked: deploy (now includes RFQVenue) → fund MM burners with MNT
-(2 new burner keys for MM_KEY_TIGHT/WIDE — generate fresh, do NOT reuse the
-local ones) → setup-mms → mantlescan verify → populate arena/timeline with
-real LLM (pin different `--model` per template vault for the arena story) →
-learn pass → CF Pages deploy (VITE_ env for Sepolia) → measure gas per
-decision → README/pitch finalize → 2-min video → DoraHacks submit (buffer
-6/15). Optional: Mantle TG/Discord for ERC-8004 agent registration flow.
+When unblocked: mantlescan verify (forge verify-contract, V2 chainid 5003) →
+re-run timeline/arena with the real LLM (pin different `--model` per template
+vault for the arena story) → README/pitch finalize → 2-min video → DoraHacks
+submit (buffer 6/15). Optional: Mantle TG/Discord for ERC-8004 registration.
 
 ## 7. Verified facts — don't re-discover
 

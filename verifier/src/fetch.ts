@@ -34,7 +34,11 @@ export function mantleSepolia(rpcUrl: string): Chain {
 }
 
 export function createVerifierClient(rpcUrl: string): PublicClient {
-  return createPublicClient({ chain: mantleSepolia(rpcUrl), transport: http(rpcUrl) })
+  // Batch + patient retries: the public Mantle Sepolia RPC rate-limits bursts.
+  return createPublicClient({
+    chain: mantleSepolia(rpcUrl),
+    transport: http(rpcUrl, { batch: { wait: 50 }, retryCount: 5, retryDelay: 1000 })
+  })
 }
 
 // -------------------------------------------------------------------- events
