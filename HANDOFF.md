@@ -162,14 +162,21 @@ MM burners (1 MNT each, keys in `agent/.env`): tight
 `0xD6fCB620A3A780695007CA0684f802b78a6d3144`. `agent/.env` fully configured
 for Sepolia (placeholder `OPENROUTER_API_KEY` → deterministic fallback until
 the real key arrives). `web/.env.production` carries the VITE_ values.
-**Sepolia progress (2026-06-12):** demo vault live with $10k deposited;
-scene 1 `MandateViolation` revert proven on-chain; **epoch 1 + epoch 2
-decisions logged (epoch 2 carries playbookVersion=1)**; PolicyIndex v1
-compiled FROM the live chain; **verifier replayed epoch 2 on Sepolia:
-VERIFIED ✓ and TAMPERED ✗** — the headline trust loop works on the public
-chain. **Measured gas per decision: ~163k L2 gas; total fee 0.021–0.112 MNT
-on testnet (50 gwei), dominated by the L1 data fee for the on-chain JSON
-payload** — mainnet pitch framing: ~163k gas/decision, cents on Mantle.
+**Sepolia status (2026-06-12): THE FULL STORY IS LIVE ON-CHAIN.**
+- scene 1: `MandateViolation` revert proven (cage holds on the public chain)
+- epoch 1 (hold) + epoch 2 (hold, **playbookVersion=1** stamped — PolicyIndex
+  v1 was compiled FROM the live chain between them)
+- **epoch 3 = the headline RFQ decision** (tx `0xa282a507…43b74e3`): both
+  legs filled by demo-mm-tight at **+4bps vs oracle mid**, QuoteFilled TCA
+  on-chain
+- crash → keeper `tripCheck()` → **tripped=true with the mMETH sleeve HELD
+  (3.94e18 intact) = FREEZE demonstrated live**, agent suspended
+- verifier replayed epochs 2 AND 3 on Sepolia: **VERIFIED ✓**; 1-char tamper
+  → **TAMPERED ✗**
+- **Measured gas**: hold decision ~163k gas (fee 0.021 MNT); RFQ decision
+  with 2 atomic fills **272,949 gas, fee 0.085 MNT** on testnet 50 gwei —
+  L1 data fee for the on-chain JSON payload dominates (~84%). Pitch framing:
+  a fully-logged, replay-verifiable AI decision costs cents on Mantle.
 
 ⚠️ RPC reality (hard-won, READ THIS before touching Sepolia): every free
 endpoint fails differently —
