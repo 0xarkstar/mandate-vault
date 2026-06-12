@@ -80,7 +80,7 @@ function buildUserPrompt(snapshot: Snapshot, mandate: MandateView): string {
   ].join('\n')
 }
 
-async function callModel(
+export async function callModel(
   model: string,
   apiKey: string,
   systemPrompt: string,

@@ -1,4 +1,4 @@
-import { canonicalJson, clamp, fallbackAllocation, type Proposal } from '@mandate-vault/clamp-core'
+import { canonicalJson, clamp, fallbackAllocation, hashString, type Proposal } from '@mandate-vault/clamp-core'
 import { mandateVaultAbi } from '@mandate-vault/abi'
 import type { Address } from 'viem'
 import { BaseError, ContractFunctionRevertedError, parseAbiItem, parseEventLogs } from 'viem'
@@ -10,7 +10,10 @@ import type { Clients } from './chain.js'
 import { fetchFunding, type FundingSnapshot } from './feeds/funding.js'
 import { readVaultState, type VaultState } from './feeds/vault.js'
 import { buildSnapshot } from './snapshot.js'
-import { proposeAllocation, FALLBACK_RATIONALE } from './llm.js'
+import { proposeAllocation, FALLBACK_RATIONALE } from './deliberate/propose.js'
+import { reviewProposal } from './deliberate/review.js'
+import { gateDecision } from './deliberate/gate.js'
+import type { Verdict } from './deliberate/types.js'
 import { buildViolateTarget } from './violate.js'
 import { planRfqExecution, postPickedQuotes, parseFills, type Fill, type RfqConfig } from './execute/submit.js'
 
@@ -61,6 +64,8 @@ export interface DecideOutcome {
   holdReason?: string
   /** TCA: RFQ fills (fill vs oracle mid) recorded by the venue. */
   fills?: Fill[]
+  /** Reviewer verdict (proposer ≠ reviewer) and which model reviewed. */
+  review?: { verdict: Verdict; reviewer: string }
 }
 
 function logLine(o: DecideOutcome): string {
@@ -101,6 +106,7 @@ export async function decideOnce(opts: DecideOptions): Promise<DecideOutcome> {
   // Proposal source: operator-forced (demo setup) > LLM > deterministic fallback.
   let proposal: Proposal
   let llmFallback = false
+  let proposerModel: string | null = null
   if (opts.forceTarget) {
     proposal = {
       regime: 'RISK_ON',
@@ -114,6 +120,7 @@ export async function decideOnce(opts: DecideOptions): Promise<DecideOutcome> {
       openRouterApiKey
     )
     llmFallback = llm === null
+    proposerModel = llm?.model ?? null
     proposal = llm
       ? llm.proposal
       : {
@@ -139,7 +146,39 @@ export async function decideOnce(opts: DecideOptions): Promise<DecideOutcome> {
     return submitViolation({ opts, proposal, snapshotJson, rawProposalJson, assetCount: mandate.assets.length, epoch: vaultState.epoch })
   }
 
-  const { clampedBps, violations } = clamp(proposal.targetAllocBps, bounds)
+  // ---- DELIBERATION: adversarial review (different model) + deterministic
+  // gate, ONE pass, default HOLD. Operator-forced targets are demo scaffolding,
+  // not model output — they bypass review but never the clamp or the chain.
+  const review = opts.forceTarget
+    ? { verdict: { verdict: 'approved', reason: 'operator-forced demo path — review bypassed' } as Verdict, reviewer: 'none' }
+    : await reviewProposal({ proposal, snapshot, mandate, apiKey: openRouterApiKey, proposerModel })
+
+  const gate = gateDecision({
+    vault,
+    proposal,
+    verdict: review.verdict,
+    maxSlippageBps: opts.rfq?.maxSlippageBps ?? 50,
+    playbookVersion: 0,
+    snapshotHash: hashString(snapshotJson)
+  })
+  if (gate.action === 'hold') {
+    const outcome: DecideOutcome = {
+      epoch: vaultState.epoch,
+      regime: proposal.regime,
+      rawBps: proposal.targetAllocBps,
+      clampedBps: [],
+      violations: 0,
+      llmFallback,
+      held: true,
+      holdReason: gate.reason,
+      review
+    }
+    // eslint-disable-next-line no-console -- CLI user-facing output
+    console.log(`deliberation HELD this cycle (no action, funds untouched): ${gate.reason}`)
+    return outcome
+  }
+
+  const { clampedBps, violations } = clamp(gate.intent.targetAllocBps, bounds)
 
   // ---- EXECUTION engine (no LLM from here on) ----
   // RFQ: compute legs, collect signed MM quotes, gate on slippage, post the
@@ -212,6 +251,7 @@ export async function decideOnce(opts: DecideOptions): Promise<DecideOutcome> {
     violations: violations.length,
     txHash,
     llmFallback,
+    review,
     ...(fills.length > 0 ? { fills } : {})
   }
   // eslint-disable-next-line no-console -- CLI user-facing output
