@@ -32,7 +32,13 @@ const EnvSchema = z.object({
   RFQ_VENUE_ADDRESS: hexAddress.optional(),
   MM_KEY_TIGHT: hexPrivateKey.optional(),
   MM_KEY_WIDE: hexPrivateKey.optional(),
-  RFQ_MAX_SLIPPAGE_BPS: z.coerce.number().int().min(0).max(10_000).default(50)
+  RFQ_MAX_SLIPPAGE_BPS: z.coerce.number().int().min(0).max(10_000).default(50),
+  /** Privacy-lite: 64-hex AES-256 key. Set → decision payloads are published
+   * as encrypted envelopes; absent → plaintext (current behaviour). */
+  VIEWING_KEY: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, 'must be 64 hex characters (32-byte key)')
+    .optional()
 })
 
 export type AgentConfig = {
@@ -49,6 +55,7 @@ export type AgentConfig = {
   mmKeyTight?: `0x${string}`
   mmKeyWide?: `0x${string}`
   rfqMaxSlippageBps: number
+  viewingKey?: string
 }
 
 /**
@@ -76,7 +83,8 @@ export function loadConfig(env: NodeJS.ProcessEnv, vaultOverride?: string): Agen
     rfqVenueAddress: e.RFQ_VENUE_ADDRESS as `0x${string}` | undefined,
     mmKeyTight: e.MM_KEY_TIGHT as `0x${string}` | undefined,
     mmKeyWide: e.MM_KEY_WIDE as `0x${string}` | undefined,
-    rfqMaxSlippageBps: e.RFQ_MAX_SLIPPAGE_BPS
+    rfqMaxSlippageBps: e.RFQ_MAX_SLIPPAGE_BPS,
+    viewingKey: e.VIEWING_KEY
   }
 }
 

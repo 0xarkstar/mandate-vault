@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canonicalJson, clamp, hashString } from '@mandate-vault/clamp-core'
+import { canonicalJson, clamp, encryptString, hashString } from '@mandate-vault/clamp-core'
 import {
   doVerify,
   tamperString,
@@ -62,9 +62,9 @@ function fixture(overrides: FixtureOverrides = {}): {
 }
 
 describe('doVerify — happy path', () => {
-  it('verifies a self-consistent decision', () => {
+  it('verifies a self-consistent decision', async () => {
     const { decisionData, decisionLogged } = fixture()
-    const r = doVerify(decisionData, decisionLogged, bounds)
+    const r = await doVerify(decisionData, decisionLogged, bounds)
     expect(r.verified).toBe(true)
     expect(r.hashChecks.map((h) => h.ok)).toEqual([true, true, true])
     expect(r.snapshotParse.ok).toBe(true)
@@ -74,23 +74,25 @@ describe('doVerify — happy path', () => {
     expect(r.clampReplay.ok).toBe(true)
     expect(r.clampReplay.expectedBps).toEqual([3000, 7000])
     expect(r.epoch).toBe('1')
+    expect(r.confidential).toBe(false)
+    expect(r.contentVerified).toBe(true)
   })
 
-  it('compares hashes case-insensitively', () => {
+  it('compares hashes case-insensitively', async () => {
     const { decisionData, decisionLogged } = fixture()
     const upper = {
       ...decisionLogged,
       inputSnapshotHash: decisionLogged.inputSnapshotHash.toUpperCase().replace('0X', '0x')
     }
-    expect(doVerify(decisionData, upper, bounds).verified).toBe(true)
+    expect((await doVerify(decisionData, upper, bounds)).verified).toBe(true)
   })
 })
 
 describe('doVerify — tamper detection', () => {
-  it('flags a tampered snapshot via hash mismatch (snapshot only)', () => {
+  it('flags a tampered snapshot via hash mismatch (snapshot only)', async () => {
     const { decisionData, decisionLogged } = fixture()
     const tamper = tamperString(decisionData.snapshotJson)
-    const r = doVerify(
+    const r = await doVerify(
       { ...decisionData, snapshotJson: tamper.tampered },
       decisionLogged,
       bounds
@@ -103,9 +105,9 @@ describe('doVerify — tamper detection', () => {
     expect(r.snapshotParse.ok).toBe(true)
   })
 
-  it('flags a tampered rationale', () => {
+  it('flags a tampered rationale', async () => {
     const { decisionData, decisionLogged } = fixture()
-    const r = doVerify(
+    const r = await doVerify(
       { ...decisionData, rationale: `${decisionData.rationale}!` },
       decisionLogged,
       bounds
@@ -116,9 +118,9 @@ describe('doVerify — tamper detection', () => {
 })
 
 describe('doVerify — clamp replay', () => {
-  it('detects an on-chain allocation that does not match the replayed clamp', () => {
+  it('detects an on-chain allocation that does not match the replayed clamp', async () => {
     const { decisionData, decisionLogged } = fixture({ clampedAllocBps: [4000, 6000] })
-    const r = doVerify(decisionData, decisionLogged, bounds)
+    const r = await doVerify(decisionData, decisionLogged, bounds)
     expect(r.hashChecks.every((h) => h.ok)).toBe(true) // hashes are intact…
     expect(r.clampReplay.performed).toBe(true)
     expect(r.clampReplay.ok).toBe(false) // …but the clamp does not replay
@@ -127,11 +129,11 @@ describe('doVerify — clamp replay', () => {
     expect(r.verified).toBe(false)
   })
 
-  it('reports a clamp failure (length mismatch vs bounds) without throwing', () => {
+  it('reports a clamp failure (length mismatch vs bounds) without throwing', async () => {
     const badProposal = { ...proposal, targetAllocBps: [5000, 3000, 2000] }
     const rawProposalJson = canonicalJson(badProposal)
     const { decisionData, decisionLogged } = fixture({ rawProposalJson })
-    const r = doVerify(decisionData, decisionLogged, bounds)
+    const r = await doVerify(decisionData, decisionLogged, bounds)
     expect(r.proposalParse.ok).toBe(true) // schema allows 1-8 assets
     expect(r.clampReplay.performed).toBe(false)
     expect(r.clampReplay.ok).toBe(false)
@@ -141,14 +143,14 @@ describe('doVerify — clamp replay', () => {
 })
 
 describe('doVerify — schema rejection', () => {
-  it('rejects a proposal that fails ProposalSchema and skips the clamp replay', () => {
+  it('rejects a proposal that fails ProposalSchema and skips the clamp replay', async () => {
     const rawProposalJson = canonicalJson({
       regime: 'YOLO',
       targetAllocBps: [10_000],
       rationale: 'x'
     })
     const { decisionData, decisionLogged } = fixture({ rawProposalJson })
-    const r = doVerify(decisionData, decisionLogged, bounds)
+    const r = await doVerify(decisionData, decisionLogged, bounds)
     expect(r.hashChecks.every((h) => h.ok)).toBe(true)
     expect(r.proposalParse.ok).toBe(false)
     expect(r.proposalParse.error).toContain('regime')
@@ -157,18 +159,18 @@ describe('doVerify — schema rejection', () => {
     expect(r.verified).toBe(false)
   })
 
-  it('rejects a proposal that is not JSON at all', () => {
+  it('rejects a proposal that is not JSON at all', async () => {
     const { decisionData, decisionLogged } = fixture({ rawProposalJson: 'not-json{' })
-    const r = doVerify(decisionData, decisionLogged, bounds)
+    const r = await doVerify(decisionData, decisionLogged, bounds)
     expect(r.proposalParse.ok).toBe(false)
     expect(r.proposalParse.error).toContain('invalid JSON')
     expect(r.verified).toBe(false)
   })
 
-  it('rejects a snapshot that fails SnapshotSchema', () => {
+  it('rejects a snapshot that fails SnapshotSchema', async () => {
     const snapshotJson = canonicalJson({ hello: 'world' })
     const { decisionData, decisionLogged } = fixture({ snapshotJson })
-    const r = doVerify(decisionData, decisionLogged, bounds)
+    const r = await doVerify(decisionData, decisionLogged, bounds)
     expect(r.hashChecks.every((h) => h.ok)).toBe(true)
     expect(r.snapshotParse.ok).toBe(false)
     expect(r.verified).toBe(false)
@@ -176,11 +178,86 @@ describe('doVerify — schema rejection', () => {
 })
 
 describe('doVerify — input guards', () => {
-  it('throws on an epoch mismatch between the two events', () => {
+  it('throws on an epoch mismatch between the two events', async () => {
     const { decisionData, decisionLogged } = fixture()
-    expect(() => doVerify(decisionData, { ...decisionLogged, epoch: 2n }, bounds)).toThrow(
+    await expect(doVerify(decisionData, { ...decisionLogged, epoch: 2n }, bounds)).rejects.toThrow(
       /epoch mismatch/
     )
+  })
+})
+
+// --------------------------------------------------------- privacy-lite (confidential)
+
+const VK = 'a'.repeat(64)
+
+/** Build a confidential event pair: snapshot envelope (+ public siblings),
+ * proposal/rationale envelopes; hashes commit to the published envelope strings. */
+async function confidentialFixture(): Promise<{
+  decisionData: DecisionDataEvent
+  decisionLogged: DecisionLoggedEvent
+}> {
+  const innerSnapshot = canonicalJson(snapshot)
+  const innerProposal = canonicalJson(proposal)
+  const innerRationale = proposal.rationale
+
+  const [snapEnv, proposalEnv, rationaleEnv] = await Promise.all([
+    encryptString(innerSnapshot, VK),
+    encryptString(innerProposal, VK),
+    encryptString(innerRationale, VK)
+  ])
+  const snapshotJson = canonicalJson({ ...snapEnv, llmFallback: true })
+  const rawProposalJson = canonicalJson(proposalEnv)
+  const rationale = canonicalJson(rationaleEnv)
+  const clampedAllocBps = clamp(proposal.targetAllocBps, bounds).clampedBps
+
+  return {
+    decisionData: { epoch: 1n, snapshotJson, rawProposalJson, rationale },
+    decisionLogged: {
+      epoch: 1n,
+      inputSnapshotHash: hashString(snapshotJson),
+      rawProposalHash: hashString(rawProposalJson),
+      rationaleHash: hashString(rationale),
+      clampedAllocBps
+    }
+  }
+}
+
+describe('doVerify — confidential payloads', () => {
+  it('with the viewing key: decrypts, replays, VERIFIED + confidential', async () => {
+    const { decisionData, decisionLogged } = await confidentialFixture()
+    const r = await doVerify(decisionData, decisionLogged, bounds, VK)
+    expect(r.verified).toBe(true)
+    expect(r.confidential).toBe(true)
+    expect(r.contentVerified).toBe(true)
+    expect(r.hashChecks.every((h) => h.ok)).toBe(true)
+    expect(r.snapshotParse.ok).toBe(true)
+    expect(r.proposalParse.ok).toBe(true)
+    expect(r.regime).toBe('RISK_ON')
+    expect(r.clampReplay.ok).toBe(true)
+    expect(r.clampReplay.expectedBps).toEqual([3000, 7000])
+  })
+
+  it('without a key: integrity verified, content locked', async () => {
+    const { decisionData, decisionLogged } = await confidentialFixture()
+    const r = await doVerify(decisionData, decisionLogged, bounds)
+    expect(r.verified).toBe(true) // integrity (hashes) ok
+    expect(r.confidential).toBe(true)
+    expect(r.contentVerified).toBe(false)
+    expect(r.hashChecks.every((h) => h.ok)).toBe(true)
+    expect(r.snapshotParse.locked).toBe(true)
+    expect(r.proposalParse.locked).toBe(true)
+    expect(r.clampReplay.locked).toBe(true)
+    expect(r.clampReplay.performed).toBe(false)
+  })
+
+  it('with the wrong key: clean failure, verified=false', async () => {
+    const { decisionData, decisionLogged } = await confidentialFixture()
+    const r = await doVerify(decisionData, decisionLogged, bounds, 'c'.repeat(64))
+    expect(r.verified).toBe(false)
+    expect(r.confidential).toBe(true)
+    expect(r.contentVerified).toBe(false)
+    expect(r.hashChecks.every((h) => h.ok)).toBe(true) // integrity still intact
+    expect(r.snapshotParse.error).toContain('viewing key incorrect')
   })
 })
 

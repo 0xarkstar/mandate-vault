@@ -36,6 +36,19 @@ describe('loadConfig', () => {
   it('rejects a non-address vault', () => {
     expect(() => loadConfig({ ...base, VAULT_ADDRESS: 'nope' })).toThrow(/Invalid agent configuration/)
   })
+
+  it('leaves viewingKey undefined when VIEWING_KEY is absent', () => {
+    expect(loadConfig(base).viewingKey).toBeUndefined()
+  })
+
+  it('accepts a 64-hex VIEWING_KEY', () => {
+    const vk = 'f'.repeat(64)
+    expect(loadConfig({ ...base, VIEWING_KEY: vk }).viewingKey).toBe(vk)
+  })
+
+  it('rejects a malformed VIEWING_KEY', () => {
+    expect(() => loadConfig({ ...base, VIEWING_KEY: '0xdead' })).toThrow(/Invalid agent configuration/)
+  })
 })
 
 describe('loadToolConfig', () => {

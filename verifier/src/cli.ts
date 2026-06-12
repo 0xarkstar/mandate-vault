@@ -19,16 +19,18 @@ import { doVerify, tamperString } from './verify.js'
 const USAGE = `mandate-verify — replay-verify a MandateVault decision from on-chain events
 
 usage:
-  tsx src/cli.ts --vault 0x... --epoch N [--tamper] [--rpc URL] [--from-block N]
+  tsx src/cli.ts --vault 0x... --epoch N [--tamper] [--viewing-key HEX] [--rpc URL] [--from-block N]
 
 options:
-  --vault       MandateVault address (required)
-  --epoch       decision epoch to verify, starting at 1 (required)
-  --tamper      mutate one character of the snapshot before recomputing hashes
-                (demonstrates tamper detection — must end TAMPERED)
-  --rpc         RPC URL (default: $RPC_URL or ${DEFAULT_RPC_URL})
-  --from-block  start block for the log scan (default: earliest)
-  -h, --help    show this help
+  --vault        MandateVault address (required)
+  --epoch        decision epoch to verify, starting at 1 (required)
+  --tamper       mutate one character of the snapshot before recomputing hashes
+                 (demonstrates tamper detection — must end TAMPERED)
+  --viewing-key  64-hex AES-256 key to decrypt confidential (privacy-lite) payloads
+                 and replay schema + clamp; omit for integrity-only verification
+  --rpc          RPC URL (default: $RPC_URL or ${DEFAULT_RPC_URL})
+  --from-block   start block for the log scan (default: earliest)
+  -h, --help     show this help
 
 exit codes: 0 = VERIFIED · 1 = TAMPERED / verification failed · 2 = usage or RPC error`
 
@@ -52,6 +54,10 @@ const CliSchema = z.object({
     .transform((s) => BigInt(s))
     .refine((e) => e >= 1n, 'epochs start at 1'),
   tamper: z.boolean(),
+  viewingKey: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, 'must be 64 hex characters (32-byte key)')
+    .optional(),
   rpc: z.string().url().optional(),
   fromBlock: BlockSchema
 })
@@ -76,6 +82,7 @@ function readCliInput(argv: readonly string[]): z.infer<typeof CliSchema> | null
           vault: { type: 'string' },
           epoch: { type: 'string' },
           tamper: { type: 'boolean', default: false },
+          'viewing-key': { type: 'string' },
           rpc: { type: 'string' },
           'from-block': { type: 'string', default: 'earliest' },
           help: { type: 'boolean', short: 'h', default: false }
@@ -98,6 +105,7 @@ function readCliInput(argv: readonly string[]): z.infer<typeof CliSchema> | null
     vault: v.vault,
     epoch: v.epoch,
     tamper: v.tamper ?? false,
+    viewingKey: v['viewing-key'],
     rpc: v.rpc,
     fromBlock: v['from-block'] ?? 'earliest'
   })
@@ -131,7 +139,7 @@ async function main(argv: readonly string[]): Promise<number> {
     ? { ...decision.decisionData, snapshotJson: tamper.tampered }
     : decision.decisionData
 
-  const result = doVerify(decisionData, decision.decisionLogged, bounds)
+  const result = await doVerify(decisionData, decision.decisionLogged, bounds, args.viewingKey)
 
   process.stdout.write(
     `${renderVerdict(result, {

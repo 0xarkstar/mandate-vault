@@ -120,7 +120,8 @@ async function run(argv: string[], env: NodeJS.ProcessEnv): Promise<void> {
     forceTarget: parseForceTarget(cli['force-target']),
     rfq,
     playbookVersion,
-    modelOverride: cli.model
+    modelOverride: cli.model,
+    viewingKey: cfg.viewingKey
   })
 }
 

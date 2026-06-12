@@ -6,9 +6,12 @@
  */
 import {
   clamp,
+  decryptEnvelope,
   hashString,
+  parseEnvelope,
   ProposalSchema,
   SnapshotSchema,
+  type ConfidentialEnvelope,
   type MandateBounds
 } from '@mandate-vault/clamp-core'
 
@@ -43,6 +46,9 @@ export interface HashCheck {
 export interface ParseCheck {
   readonly ok: boolean
   readonly error: string | null
+  /** True when the payload is an encrypted envelope and no viewing key was
+   * supplied — the schema/clamp content check is locked, not failed. */
+  readonly locked?: boolean
 }
 
 export interface ClampReplay {
@@ -52,6 +58,8 @@ export interface ClampReplay {
   readonly expectedBps: readonly number[] | null
   readonly onchainBps: readonly number[]
   readonly reason: string | null
+  /** True when the proposal is an encrypted envelope and no key was supplied. */
+  readonly locked?: boolean
 }
 
 export interface VerifyResult {
@@ -63,6 +71,11 @@ export interface VerifyResult {
   readonly regime: string | null
   readonly clampReplay: ClampReplay
   readonly verified: boolean
+  /** True when the on-chain payloads are encrypted envelopes (privacy-lite). */
+  readonly confidential: boolean
+  /** True when the inner content (schema + clamp) was actually re-verified.
+   * False when confidential and locked (no viewing key) — integrity only. */
+  readonly contentVerified: boolean
 }
 
 // -------------------------------------------------------------------- helpers
@@ -144,32 +157,93 @@ export function tamperString(s: string): TamperResult {
 /**
  * Replay one on-chain decision from its emitted payload:
  *  1. recompute keccak256 of snapshot/proposal/rationale vs DecisionLogged hashes
+ *     (ALWAYS on the published strings — integrity, unchanged for envelopes)
  *  2. re-parse snapshot (SnapshotSchema) and raw proposal (ProposalSchema)
  *  3. re-run the deterministic clamp and compare with the on-chain allocation
+ *
+ * Privacy-lite: when the published snapshot is an encrypted envelope, steps 2–3
+ * operate on the DECRYPTED inner strings (requires `viewingKey`). Without a key,
+ * integrity (hashes) still verifies but content checks report `locked`. A wrong
+ * key produces a clean failure.
  */
-export function doVerify(
+export async function doVerify(
   decisionData: DecisionDataEvent,
   decisionLogged: DecisionLoggedEvent,
-  bounds: MandateBounds
-): VerifyResult {
+  bounds: MandateBounds,
+  viewingKey?: string
+): Promise<VerifyResult> {
   if (decisionData.epoch !== decisionLogged.epoch) {
     throw new Error(
       `epoch mismatch between events: DecisionData ${decisionData.epoch} vs DecisionLogged ${decisionLogged.epoch}`
     )
   }
 
+  // Hash checks ALWAYS run on the published strings (integrity is independent of
+  // whether the content is confidential).
   const hashChecks: readonly HashCheck[] = [
     hashCheck('snapshot', decisionData.snapshotJson, decisionLogged.inputSnapshotHash),
     hashCheck('proposal', decisionData.rawProposalJson, decisionLogged.rawProposalHash),
     hashCheck('rationale', decisionData.rationale, decisionLogged.rationaleHash)
   ]
 
-  // snapshot: parse for structural sanity (hash equality is the integrity check)
-  const snapshot = checkSchema(decisionData.snapshotJson, SnapshotSchema)
-  // proposal: must parse — its targetAllocBps feeds the clamp replay
-  const proposal = checkSchema(decisionData.rawProposalJson, ProposalSchema)
+  const snapEnvelope = parseEnvelope(decisionData.snapshotJson)
+  const confidential = snapEnvelope !== null
 
+  // Resolve the inner (plaintext) snapshot/proposal strings to content-check.
+  const inner = await resolveInner(decisionData, snapEnvelope, viewingKey)
   const onchainBps = decisionLogged.clampedAllocBps
+
+  if (inner.kind === 'locked') {
+    // Envelope + no key: integrity-only. Content rows are LOCKED, not failed.
+    const lockedParse: ParseCheck = { ok: false, error: null, locked: true }
+    const hashesOk = hashChecks.every((h) => h.ok)
+    return {
+      epoch: decisionData.epoch.toString(),
+      hashChecks,
+      snapshotParse: lockedParse,
+      proposalParse: lockedParse,
+      regime: null,
+      clampReplay: {
+        performed: false,
+        ok: false,
+        expectedBps: null,
+        onchainBps,
+        reason: 'content confidential — supply --viewing-key to replay schema + clamp',
+        locked: true
+      },
+      verified: hashesOk,
+      confidential: true,
+      contentVerified: false
+    }
+  }
+
+  if (inner.kind === 'wrong-key') {
+    // Envelope + wrong key (or tampered ciphertext): clean failure.
+    const failParse: ParseCheck = { ok: false, error: 'viewing key incorrect or data tampered' }
+    return {
+      epoch: decisionData.epoch.toString(),
+      hashChecks,
+      snapshotParse: failParse,
+      proposalParse: failParse,
+      regime: null,
+      clampReplay: {
+        performed: false,
+        ok: false,
+        expectedBps: null,
+        onchainBps,
+        reason: 'viewing key incorrect or data tampered'
+      },
+      verified: false,
+      confidential: true,
+      contentVerified: false
+    }
+  }
+
+  // Plaintext, or envelope decrypted with the correct key: run the content checks
+  // on the inner strings.
+  const snapshot = checkSchema(inner.snapshotJson, SnapshotSchema)
+  const proposal = checkSchema(inner.rawProposalJson, ProposalSchema)
+
   const clampReplay: ClampReplay =
     proposal.data === null
       ? {
@@ -181,8 +255,8 @@ export function doVerify(
         }
       : replayClamp(proposal.data.targetAllocBps, bounds, onchainBps)
 
-  const verified =
-    hashChecks.every((h) => h.ok) && snapshot.check.ok && proposal.check.ok && clampReplay.ok
+  const contentOk = snapshot.check.ok && proposal.check.ok && clampReplay.ok
+  const verified = hashChecks.every((h) => h.ok) && contentOk
 
   return {
     epoch: decisionData.epoch.toString(),
@@ -191,7 +265,43 @@ export function doVerify(
     proposalParse: proposal.check,
     regime: proposal.data?.regime ?? null,
     clampReplay,
-    verified
+    verified,
+    confidential,
+    contentVerified: contentOk
+  }
+}
+
+type InnerResult =
+  | { readonly kind: 'plain'; readonly snapshotJson: string; readonly rawProposalJson: string }
+  | { readonly kind: 'locked' }
+  | { readonly kind: 'wrong-key' }
+
+/**
+ * Resolve the strings the schema/clamp checks run against:
+ *  - plaintext payloads → return them as-is
+ *  - envelope + no key → `locked`
+ *  - envelope + key → decrypt all three; failure → `wrong-key`
+ */
+async function resolveInner(
+  decisionData: DecisionDataEvent,
+  snapEnvelope: ConfidentialEnvelope | null,
+  viewingKey: string | undefined
+): Promise<InnerResult> {
+  if (snapEnvelope === null) {
+    return { kind: 'plain', snapshotJson: decisionData.snapshotJson, rawProposalJson: decisionData.rawProposalJson }
+  }
+  if (!viewingKey) return { kind: 'locked' }
+
+  const proposalEnvelope = parseEnvelope(decisionData.rawProposalJson)
+  if (proposalEnvelope === null) return { kind: 'wrong-key' }
+  try {
+    const [snapshotJson, rawProposalJson] = await Promise.all([
+      decryptEnvelope(snapEnvelope, viewingKey),
+      decryptEnvelope(proposalEnvelope, viewingKey)
+    ])
+    return { kind: 'plain', snapshotJson, rawProposalJson }
+  } catch {
+    return { kind: 'wrong-key' }
   }
 }
 

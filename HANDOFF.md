@@ -156,6 +156,19 @@ enforcement layers). ALL OF THIS IS NOW IMPLEMENTED — see §4.
 | Balanced | `0x52244F53E303891c948Fab0AF5495CdD70566008` |
 | Aggressive | `0x9037cE82381B8abE673B9A3EA9517b195506B54B` |
 | Demo vault (60s, FREEZE) | `0xBd5A3F03ed0488262b4bE31d9854CaF3c442de14` |
+| **Confidential demo vault** (privacy-lite, 2026-06-13) | `0x0AEfA5D20544499680aa2E4662EE9f171E0B747a` |
+
+Confidential vault: epoch 1 = encrypted-envelope decision (AES-256-GCM,
+RFQ legs filled +4bps TCA). Demo viewing key (public BY DESIGN, in README):
+`4d616e646174655661756c7420436f6e666964656e7469616c2044656d6f4b31`.
+Verifier `--viewing-key` → 🔒 VERIFIED; without → 🔒 INTEGRITY VERIFIED.
+Privacy-lite shipped 2026-06-13: clamp-core `confidential.ts` (WebCrypto
+AES-GCM envelopes), agent `VIEWING_KEY` env, verifier/web selective
+disclosure. Tests now **260** (clamp-core 24 · verifier 22 · web 83 ·
+agent 90 · forge 41). Arena round 2 ran: template vaults at 2 epochs each
+(gpt-oss 85/15, gemma 80/20/0 real proposals; nemotron 429→honest fallback
+twice). Repo public: https://github.com/0xarkstar/mandate-vault. Pitch
+blocks: docs/PITCH.md. Video script: docs/VIDEO-SCRIPT.md.
 
 MM burners (1 MNT each, keys in `agent/.env`): tight
 `0x71AbD3419831185bb722de9e758303982F2b0a0a`, wide

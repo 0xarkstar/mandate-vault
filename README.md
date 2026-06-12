@@ -88,7 +88,53 @@ PolicyIndex v1 → scene 3 crash + FREEZE trip → scene 4 third-party replay
 - The learning engine ships as a thin slice (distill → PolicyIndex, version
   stamped into every decision snapshot). The full compounding loop is roadmap.
 
+## Confidential decisions (privacy-lite)
+
+Set `VIEWING_KEY` (64 hex chars) in `agent/.env` and the three published
+decision payloads (input snapshot, raw proposal, rationale) go on-chain as
+**AES-256-GCM envelopes** instead of plaintext. The hashes commit to the
+published envelopes, so public integrity verification is unchanged — but
+content verification (schema + clamp replay) requires the key:
+
+```bash
+# auditor / LP (holds the key): full verification
+tsx src/cli.ts --vault 0x… --epoch 1 --viewing-key <64-hex>
+#   → 🔒 VERIFIED ✓ (confidential — decrypted + replayed)
+
+# public (no key): integrity + execution quality only
+tsx src/cli.ts --vault 0x… --epoch 1
+#   → 🔒 INTEGRITY VERIFIED ✓ (content confidential)
+```
+
+What stays public by design: final allocations (the chain enforces them),
+timing, TCA fill quality, and the `llmFallback`/`playbookVersion` flags
+("a real model reasoned" / "playbook vN was used") — outsiders see *that*
+the AI worked and *how well* it executed, never *what it saw or why*.
+The in-browser Verify button accepts the key the same way. Full zk-proven
+compliance (hide even the allocations) is roadmap — see docs/SUBMISSION.md.
+
+**Try it live**: the Sepolia confidential demo vault's viewing key is
+published below on purpose — pretend you are the LP.
+
+## Live on Mantle Sepolia (all contracts source-verified)
+
+| | |
+|---|---|
+| Dashboard | https://mandate-vault.pages.dev |
+| VaultFactory | `0xF6b02eaF2f3a08bEf0db2E2293C0B07eFf4BDB0f` |
+| RFQVenue | `0x6555A9429DCa1E0967744e0F55B2891E56f2D7d1` |
+| Demo vault (FREEZE-tripped, 3 epochs) | `0xBd5A3F03ed0488262b4bE31d9854CaF3c442de14` |
+| Confidential demo vault (encrypted epoch 1, RFQ-filled +4bps) | `0x0AEfA5D20544499680aa2E4662EE9f171E0B747a` |
+| Demo viewing key (public on purpose) | `4d616e646174655661756c7420436f6e666964656e7469616c2044656d6f4b31` |
+
+On-chain story: `MandateViolation` revert proven live · real-LLM epochs
+(gpt-oss, gemma) RFQ-filled at **+4bps vs oracle mid** with on-chain TCA ·
+honest deterministic-fallback epochs recorded when a free model 429'd ·
+FREEZE trip with positions held · replay VERIFIED ✓ / tamper TAMPERED ✗ ·
+measured cost **~163k–273k gas (0.02–0.085 MNT testnet) per fully logged,
+replay-verifiable AI decision**.
+
 ## Tests
 
-`pnpm -r test` (TS: clamp-core 13 · verifier 19 · web 73 · agent 84) and
-`cd contracts && forge test` (41) — 230 tests, all green at HEAD.
+`pnpm -r test` (TS: clamp-core 24 · verifier 22 · web 83 · agent 90) and
+`cd contracts && forge test` (41) — **260 tests**, all green at HEAD.

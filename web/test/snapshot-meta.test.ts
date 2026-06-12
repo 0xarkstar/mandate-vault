@@ -40,4 +40,15 @@ describe('extractSnapshotMeta', () => {
   it('degrades gracefully on an empty/old snapshot', () => {
     expect(extractSnapshotMeta('{}')).toEqual({ playbookVersion: null, llmFallback: false })
   })
+
+  it('reads plaintext public siblings off a confidential envelope (does not crash)', () => {
+    // privacy-lite: the published snapshot is an envelope + plaintext siblings
+    const envelope = '{"v":1,"alg":"A256GCM","iv":"AAAA","enc":"BBBB","llmFallback":true,"playbookVersion":4}'
+    expect(extractSnapshotMeta(envelope)).toEqual({ playbookVersion: 4, llmFallback: true })
+  })
+
+  it('returns defaults for an envelope without public siblings', () => {
+    const envelope = '{"v":1,"alg":"A256GCM","iv":"AAAA","enc":"BBBB"}'
+    expect(extractSnapshotMeta(envelope)).toEqual({ playbookVersion: null, llmFallback: false })
+  })
 })

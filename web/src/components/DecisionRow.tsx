@@ -5,6 +5,7 @@ import { bpsToPct, shortenAddress, timeAgo } from '../lib/format'
 import { computeClampDelta, extractRegime, extractTargetBps } from '../lib/clamp-delta'
 import { extractSnapshotMeta } from '../lib/snapshot-meta'
 import { buildCageDiagram } from '../lib/cage'
+import { isConfidentialDecision } from '../lib/verify'
 import type { DecisionTca as TcaModel } from '../lib/fills-tca'
 import { Card } from './ui/Card'
 import { RegimeBadge } from './RegimeBadge'
@@ -34,6 +35,7 @@ export function DecisionRow({
   const rawBps = extractTargetBps(decision.rawProposalJson)
   const delta = computeClampDelta(rawBps, decision.clampedAllocBps)
   const meta = extractSnapshotMeta(decision.snapshotJson)
+  const confidential = isConfidentialDecision(decision)
   const cage = buildCageDiagram(rawBps, decision.clampedAllocBps, mandate.minBps, mandate.maxBps)
 
   const signals = {
@@ -106,9 +108,15 @@ export function DecisionRow({
             {rationaleOpen ? '▾ Hide rationale' : '▸ Show rationale'}
           </button>
           {rationaleOpen ? (
-            <p className="mt-2 whitespace-pre-wrap rounded-lg border border-ink-700 bg-ink-900/50 p-3 text-xs leading-relaxed text-mist-300">
-              {decision.rationale || '(no rationale recorded)'}
-            </p>
+            confidential ? (
+              <p className="mt-2 rounded-lg border border-ink-700 bg-ink-900/50 p-3 text-xs leading-relaxed text-mist-400">
+                🔒 Confidential decision — verify with viewing key
+              </p>
+            ) : (
+              <p className="mt-2 whitespace-pre-wrap rounded-lg border border-ink-700 bg-ink-900/50 p-3 text-xs leading-relaxed text-mist-300">
+                {decision.rationale || '(no rationale recorded)'}
+              </p>
+            )
           ) : null}
         </div>
         <VerifyButton decision={decision} mandate={mandate} />

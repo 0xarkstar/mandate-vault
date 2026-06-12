@@ -45,6 +45,11 @@ describe('extractTargetBps', () => {
   it('returns [] when the field is the wrong type', () => {
     expect(extractTargetBps('{"targetAllocBps":"7000"}')).toEqual([])
   })
+
+  it('returns [] for a confidential envelope (no targetAllocBps; does not crash)', () => {
+    const envelope = '{"v":1,"alg":"A256GCM","iv":"AAAA","enc":"BBBB"}'
+    expect(extractTargetBps(envelope)).toEqual([])
+  })
 })
 
 describe('extractRegime', () => {
@@ -58,5 +63,9 @@ describe('extractRegime', () => {
     expect(extractRegime('{"regime":"PANIC"}')).toBeNull()
     expect(extractRegime('{}')).toBeNull()
     expect(extractRegime('broken')).toBeNull()
+  })
+
+  it('returns null for a confidential envelope (no regime; does not crash)', () => {
+    expect(extractRegime('{"v":1,"alg":"A256GCM","iv":"AAAA","enc":"BBBB"}')).toBeNull()
   })
 })

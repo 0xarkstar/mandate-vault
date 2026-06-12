@@ -1,4 +1,5 @@
 import { canonicalJson, clamp, fallbackAllocation, hashString, type Proposal } from '@mandate-vault/clamp-core'
+import { buildConfidentialPayloads } from './confidential.js'
 import { mandateVaultAbi } from '@mandate-vault/abi'
 import type { Address } from 'viem'
 import { BaseError, ContractFunctionRevertedError, parseAbiItem, parseEventLogs } from 'viem'
@@ -48,6 +49,13 @@ export interface DecideOptions {
   playbookVersion?: number
   /** Agent Arena: pin the proposer to a single model (no fallback chain). */
   modelOverride?: string
+  /**
+   * Privacy-lite: 64-hex AES-256 key. When set, the three published payloads
+   * (snapshot/rawProposal/rationale) are replaced by encrypted envelopes; the
+   * clamp/RFQ/on-chain flow is otherwise unchanged (hashes commit to the
+   * published envelope strings, so integrity verification is identical).
+   */
+  viewingKey?: string
 }
 
 export interface DecideOutcome {
@@ -152,6 +160,28 @@ export async function decideOnce(opts: DecideOptions): Promise<DecideOutcome> {
     return submitViolation({ opts, proposal, snapshotJson, rawProposalJson, assetCount: mandate.assets.length, epoch: vaultState.epoch })
   }
 
+  // Privacy-lite: with a viewing key, publish encrypted envelopes instead of the
+  // plaintext payloads. Hashes commit to these published strings, so the clamp /
+  // RFQ / on-chain flow below (and integrity verification) is unchanged.
+  let publishedSnapshotJson = snapshotJson
+  let publishedRawProposalJson = rawProposalJson
+  let publishedRationale = proposal.rationale
+  if (opts.viewingKey) {
+    const confidential = await buildConfidentialPayloads({
+      snapshotJson,
+      rawProposalJson,
+      rationale: proposal.rationale,
+      viewingKey: opts.viewingKey,
+      publicFields: {
+        ...(llmFallback ? { llmFallback: true as const } : {}),
+        ...(opts.playbookVersion !== undefined ? { playbookVersion: opts.playbookVersion } : {})
+      }
+    })
+    publishedSnapshotJson = confidential.snapshotJson
+    publishedRawProposalJson = confidential.rawProposalJson
+    publishedRationale = confidential.rationale
+  }
+
   // ---- DELIBERATION: adversarial review (different model) + deterministic
   // gate, ONE pass, default HOLD. Operator-forced targets are demo scaffolding,
   // not model output — they bypass review but never the clamp or the chain.
@@ -165,7 +195,7 @@ export async function decideOnce(opts: DecideOptions): Promise<DecideOutcome> {
     verdict: review.verdict,
     maxSlippageBps: opts.rfq?.maxSlippageBps ?? 50,
     playbookVersion: opts.playbookVersion ?? 0,
-    snapshotHash: hashString(snapshotJson)
+    snapshotHash: hashString(publishedSnapshotJson)
   })
   if (gate.action === 'hold') {
     const outcome: DecideOutcome = {
@@ -221,7 +251,7 @@ export async function decideOnce(opts: DecideOptions): Promise<DecideOutcome> {
     address: vault,
     abi: mandateVaultAbi,
     functionName: 'rebalance',
-    args: [clampedBps, snapshotJson, rawProposalJson, proposal.rationale],
+    args: [clampedBps, publishedSnapshotJson, publishedRawProposalJson, publishedRationale],
     chain: clients.chain,
     account: clients.account
   })
