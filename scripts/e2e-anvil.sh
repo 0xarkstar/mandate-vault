@@ -37,6 +37,12 @@ if ! cast chain-id --rpc-url "$RPC" >/dev/null 2>&1; then
   done
 fi
 
+# Anvil has no multicall3 predeploy; the web client aggregates reads through
+# it (canonical address), so inject the real runtime bytecode.
+cast rpc --rpc-url "$RPC" anvil_setCode 0xcA11bde05977b3631167028862bE2a173976CA11 \
+  "$(tr -d '\n' < "$ROOT/scripts/multicall3-runtime.hex")" >/dev/null
+echo "multicall3 injected"
+
 # ---------------------------------------------------------- burner keys
 newkey() { cast wallet new | awk '/Address:/{a=$2} /Private key:/{k=$3} END{print a" "k}'; }
 fund()   { cast rpc --rpc-url "$RPC" anvil_setBalance "$1" 0x21E19E0C9BAB2400000 >/dev/null; } # 10k ETH

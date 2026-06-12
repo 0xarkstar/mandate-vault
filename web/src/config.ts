@@ -23,6 +23,10 @@ export interface AppConfig {
   rpcUrl: string
   chainId: number
   explorerUrl: string
+  /** First block to scan for event logs (set to the deploy block on a live
+   * chain — scanning from genesis in 9k-block chunks is thousands of RPC
+   * calls on Sepolia). 0 = local anvil. */
+  startBlock: bigint
   configError: string | null
 }
 
@@ -32,7 +36,8 @@ function readRaw() {
     factory: env.VITE_FACTORY_ADDRESS,
     rpcUrl: env.VITE_RPC_URL ?? DEFAULTS.rpcUrl,
     chainId: env.VITE_CHAIN_ID ?? String(DEFAULTS.chainId),
-    explorerUrl: env.VITE_EXPLORER_URL ?? DEFAULTS.explorerUrl
+    explorerUrl: env.VITE_EXPLORER_URL ?? DEFAULTS.explorerUrl,
+    startBlock: env.VITE_START_BLOCK ?? '0'
   }
 }
 
@@ -47,13 +52,15 @@ export function loadConfig(): AppConfig {
   const baseSchema = z.object({
     rpcUrl: httpUrlSchema,
     chainId: z.coerce.number().int().positive(),
-    explorerUrl: httpUrlSchema
+    explorerUrl: httpUrlSchema,
+    startBlock: z.coerce.bigint().nonnegative()
   })
 
   const base = baseSchema.safeParse({
     rpcUrl: raw.rpcUrl,
     chainId: raw.chainId,
-    explorerUrl: raw.explorerUrl
+    explorerUrl: raw.explorerUrl,
+    startBlock: raw.startBlock
   })
 
   if (!base.success) {
@@ -62,6 +69,7 @@ export function loadConfig(): AppConfig {
       rpcUrl: DEFAULTS.rpcUrl,
       chainId: DEFAULTS.chainId,
       explorerUrl: DEFAULTS.explorerUrl,
+      startBlock: 0n,
       configError: base.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')
     }
   }
@@ -82,6 +90,7 @@ export function loadConfig(): AppConfig {
     rpcUrl: base.data.rpcUrl,
     chainId: base.data.chainId,
     explorerUrl: base.data.explorerUrl,
+    startBlock: base.data.startBlock,
     configError
   }
 }

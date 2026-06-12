@@ -1,6 +1,7 @@
 import { decodeEventLog, type Log } from 'viem'
 import { mandateVaultAbi } from '@mandate-vault/abi'
 import { publicClient } from './clients'
+import { config } from '../config'
 import type { Decision } from '../lib/types'
 
 const vaultAbi = mandateVaultAbi as never
@@ -67,7 +68,7 @@ async function getLogsResilient(
     return (await publicClient.getLogs({
       address: vault,
       event: event as never,
-      fromBlock: 0n,
+      fromBlock: config.startBlock,
       toBlock: latest
     })) as Log[]
   } catch {
@@ -77,7 +78,7 @@ async function getLogsResilient(
 
 async function chunkedGetLogs(vault: `0x${string}`, event: unknown, latest: bigint): Promise<Log[]> {
   const out: Log[] = []
-  let from = 0n
+  let from = config.startBlock
   while (from <= latest) {
     const to = from + CHUNK_SIZE > latest ? latest : from + CHUNK_SIZE
     try {
