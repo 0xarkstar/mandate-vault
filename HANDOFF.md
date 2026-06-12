@@ -162,13 +162,30 @@ MM burners (1 MNT each, keys in `agent/.env`): tight
 `0xD6fCB620A3A780695007CA0684f802b78a6d3144`. `agent/.env` fully configured
 for Sepolia (placeholder `OPENROUTER_API_KEY` → deterministic fallback until
 the real key arrives). `web/.env.production` carries the VITE_ values.
-⚠️ RPC reality (hard-won): the official `rpc.sepolia.mantle.xyz` rate-limits
-per-IP on a sliding window — a vault-state read (13+ eth_calls) trips it, and
-once tripped it stays limited for minutes. Fixes shipped: viem transports now
-batch + retry (agent chain.ts, verifier fetch.ts, web already batched), and
-`agent/.env` RPC_URL points at **https://mantle-sepolia.drpc.org** (alive,
-chainId 5003; blastapi 403s, omniatech 521s). Two consecutive `cast send`s
-from one key can also race the sequencer nonce ("nonce too low") — retry.
+**Sepolia progress (2026-06-12):** demo vault live with $10k deposited;
+scene 1 `MandateViolation` revert proven on-chain; **epoch 1 + epoch 2
+decisions logged (epoch 2 carries playbookVersion=1)**; PolicyIndex v1
+compiled FROM the live chain; **verifier replayed epoch 2 on Sepolia:
+VERIFIED ✓ and TAMPERED ✗** — the headline trust loop works on the public
+chain. **Measured gas per decision: ~163k L2 gas; total fee 0.021–0.112 MNT
+on testnet (50 gwei), dominated by the L1 data fee for the on-chain JSON
+payload** — mainnet pitch framing: ~163k gas/decision, cents on Mantle.
+
+⚠️ RPC reality (hard-won, READ THIS before touching Sepolia): every free
+endpoint fails differently —
+- official `rpc.sepolia.mantle.xyz`: per-IP sliding-window rate limit; a
+  13-call vault read trips it and the penalty persists for minutes. Single
+  `cast send`s usually pass.
+- `mantle-sepolia.drpc.org`: 500s on JSON-RPC batches above a few calls.
+- `mantle-sepolia.gateway.tenderly.co`: truncates big batches ("Cannot read
+  properties of undefined"), caps something on busy minutes ("Request
+  exceeds defined limit"); writes must NOT be batched.
+- blastapi 403s, omniatech 521s, publicnode/sepolia.mantle.xyz dead.
+Fixes shipped: agent/verifier transports batch (batchSize 5, wait 50ms) with
+6 retries × 15s; wallet (write) transport un-batched. agent/.env currently
+points at tenderly. **The real fix is a free KEYED RPC (Tenderly/Alchemy
+account) — added to the user list.** Two consecutive `cast send`s from one
+key can race the sequencer nonce ("nonce too low") — retry.
 
 ## 6. BLOCKED ON USER (Sepolia/live track)
 
@@ -183,6 +200,9 @@ from one key can also race the sequencer nonce ("nonce too low") — retry.
    --production-branch=main && npx wrangler pages deploy dist
    --project-name=mandate-vault --branch=main` (wrangler already authed as
    0930bbc@gmail.com).
+5. **Free keyed RPC endpoint** (Tenderly or Alchemy account, Mantle Sepolia)
+   → `agent/.env RPC_URL` + rebuild web with it in `VITE_RPC_URL`. Kills the
+   public-gateway rate-limit lottery for the demo video recording.
 
 When unblocked: mantlescan verify (forge verify-contract, V2 chainid 5003) →
 re-run timeline/arena with the real LLM (pin different `--model` per template

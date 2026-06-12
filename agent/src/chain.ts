@@ -42,16 +42,24 @@ export interface Clients {
  * residual 429s. Harmless on local anvil.
  */
 function transportFor(rpcUrl: string) {
-  return http(rpcUrl, { batch: { wait: 50 }, retryCount: 5, retryDelay: 1000 })
+  // batchSize capped at 5: free public gateways (drpc, tenderly) truncate or
+  // 500 on larger JSON-RPC batches; 13 reads become 3 requests, not 13.
+  // retryDelay 15s: their rate-limit windows are sliding minutes, not seconds.
+  return http(rpcUrl, { batch: { batchSize: 5, wait: 50 }, retryCount: 6, retryDelay: 15_000 })
 }
 
 /** Build a public (read) + wallet (write) client pair for a given signer. */
 export function makeClients(rpcUrl: string, chainId: number, privateKey: `0x${string}`): Clients {
   const chain = mantleSepolia(rpcUrl, chainId)
   const account = privateKeyToAccount(privateKey)
-  const transport = transportFor(rpcUrl)
-  const publicClient = createPublicClient({ chain, transport })
-  const walletClient = createWalletClient({ chain, transport, account })
+  const publicClient = createPublicClient({ chain, transport: transportFor(rpcUrl) })
+  // Writes stay un-batched: public gateways mishandle eth_sendRawTransaction
+  // inside JSON-RPC batches; a tx is one request anyway.
+  const walletClient = createWalletClient({
+    chain,
+    transport: http(rpcUrl, { retryCount: 6, retryDelay: 15_000 }),
+    account
+  })
   return { chain, publicClient, walletClient, account }
 }
 
