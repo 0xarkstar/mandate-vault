@@ -10,12 +10,25 @@ makes the AI's output objectively measurable: fill price vs oracle mid,
 improvement bps, mandate-compliance — all recorded on-chain.
 
 What custody (Fireblocks) did for *holding*, MandateVault does for *moving and
-delegating* institutional capital on-chain. Track assets: **USDY/mUSD**
-(T-bill stable, the safe sleeve) and **mETH** (Mantle's flagship LST).
+delegating* institutional capital on-chain. Posture: **T-bill floor, caged
+carry** — every mandate anchors to a yield-bearing safe sleeve (USDY/mUSD,
+~4-5% T-bill); risk (mETH, Mantle's flagship LST) only within bounds the
+owner pre-committed.
 
-> Full product definition: [docs/SUBMISSION.md](docs/SUBMISSION.md) ·
-> contract design: [docs/DESIGN.md](docs/DESIGN.md) ·
-> agent architecture: [docs/HARNESS.md](docs/HARNESS.md)
+**What this is NOT.** Not an LP, not an aggregator, not a fund. The deletion
+test: swap our RFQ venue for any other execution venue and the product
+survives intact (execution is replaceable plumbing — we built our own because
+testnet had nothing to plug into); delete the mandate cage, the replay
+verification, or the Arena and nothing remains. Unlike an LP, the vault's
+composition is a function of *decision* (mandate-bounded), never of *price*
+(x·y=k buying the falling asset); nobody can trade against its balances, and
+it pays a small known spread instead of collecting fees for being picked off.
+
+> Product definition: [docs/SUBMISSION.md](docs/SUBMISSION.md) ·
+> contracts: [docs/DESIGN.md](docs/DESIGN.md) ·
+> agent harness: [docs/HARNESS.md](docs/HARNESS.md) ·
+> **every hard objection, answered: [docs/STRESS-TEST-QA.md](docs/STRESS-TEST-QA.md)** ·
+> submission blocks: [docs/PITCH.md](docs/PITCH.md)
 
 ## How it works — three engines, three clocks
 
@@ -38,6 +51,19 @@ Every decision is logged with its full input snapshot, raw proposal, and
 playbook version — any third party can replay and verify it
 (`verifier/`, or the in-browser Verify button).
 
+## Using it — the first five minutes
+
+Browse vaults (no wallet needed) → open one and read its *contract*, not a
+prospectus: mandate card (bounds, "On breach: FREEZE"), separation-of-powers
+card, full decision timeline with fill-vs-mid badges → click **🔍 Verify**
+and watch your browser recompute the hashes and replay the clamp → connect
+a wallet (Mantle Sepolia; faucet mint built into the deposit panel) →
+approve + deposit → done. You never operate anything; the agent runs, the
+timeline grows, and you can withdraw to the safe asset at any time.
+Institutions/DAOs: `createCustomVault(mandate)` is permissionless — your
+rules, your agent (`setAgent` swaps managers without liquidation), optional
+`VIEWING_KEY` for confidential strategy context.
+
 ## Drawdown protection that doesn't panic-sell
 
 The drawdown trip is permissionless (`tripCheck()`); its behavior is a
@@ -48,18 +74,51 @@ mandate field the depositor pre-commits:
 - **DERISK (opt-in)** — exit to the safe asset via the venue (RFQ-routed
   when quoted, oracle-mid fallback), never a market dump.
 
+**Withdrawals are NEVER blocked — not tripped, not killed.** That is a code
+invariant, not a policy: an abandoned vault dies, the money walks out. The
+owner cannot withdraw depositors' funds (no such function exists), so the
+worst an absent or hostile owner can do is leave a vault frozen — with every
+depositor free to exit to the safe asset.
+
 ## Monorepo
 
 ```
 contracts/   Foundry — MandateVault, VaultFactory, RFQVenue, mocks (41 tests)
 agent/       TS daemon — deliberate/ (propose·review·gate·onboard),
              execute/ (legs·rfq·route·submit), learn/ (distill·PolicyIndex),
-             mm/ demo market makers, tools/ (84 tests)
-verifier/    third-party replay verification CLI (19 tests)
+             mm/ demo market makers, confidential payloads, tools/ (90 tests)
+verifier/    third-party replay verification CLI, viewing-key aware (22 tests)
 web/         Vite + React dashboard — vaults, decision timeline, cage
-             diagram, TCA, Agent Arena (in-browser verification)
-packages/    clamp-core (shared deterministic cage, 13 tests) · abi
+             diagram, TCA, Agent Arena (in-browser verification) (83 tests)
+packages/    clamp-core (shared cage + confidential envelopes, 24 tests) · abi
 ```
+
+## Economics (live in the contract today)
+
+Every vault minted by the factory — template or custom — pays the platform
+**1%/yr management** (share dilution, accrued per rebalance) and **10%
+performance above a 4.5%/yr T-bill hurdle** (high-water-mark). Revenue is
+linear in TVL — asset management's most proven model; the ceiling is
+go-to-market, not architecture. **No token**, by design: value lands in
+Mantle-native assets (gas, mandate demand for mUSD/mETH/MNT, sticky TVL).
+Any future token must capture organic fee flow at defined milestones —
+emissions that rent TVL are permanently out.
+
+Mainnet asset map (testnet mocks are address-swap stand-ins, zero structural
+change): mUSD → **USDY**/USDT (T-bill floor) · mMETH → **mETH/cmETH** =
+Mantle's official LST/restaking · mMNT → WMNT (+ Rewards Station). Each
+sleeve has a real yield source; pair-vaults (ETH↔mETH, USDT↔USDY) are just
+mandates with peg-risk bounds.
+
+## Agent Arena — live results
+
+Same rails, different brains, scored on-chain on **execution quality**
+(50% fill improvement vs mid · 30% cage discipline · 20% autonomy — never
+alpha). Live Sepolia leaderboard after two rounds: **gpt-oss-120b** and
+**gemma-4-31b** made real proposals and filled at +4bps vs mid;
+**nemotron-3-ultra**'s free tier rate-limited both rounds, the agent fell
+back to its deterministic path, the chain recorded it honestly — and it
+ranks last on autonomy. That honesty trail *is* the benchmark.
 
 ## Quickstart (local anvil, no external keys needed)
 
@@ -87,6 +146,9 @@ PolicyIndex v1 → scene 3 crash + FREEZE trip → scene 4 third-party replay
   (Hashflow-style), ERC-4626 virtual-offset share accounting.
 - The learning engine ships as a thin slice (distill → PolicyIndex, version
   stamped into every decision snapshot). The full compounding loop is roadmap.
+- The one real open bet, stated: *will institutions/DAOs actually delegate
+  capital to AI agents under mandates?* Everything else resolves mechanically
+  if capital comes. Full objection register: docs/STRESS-TEST-QA.md.
 
 ## Confidential decisions (privacy-lite)
 
