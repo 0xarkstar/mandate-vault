@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 
-export type Route = { name: 'vaults' } | { name: 'vault'; address: `0x${string}` }
+export type Route =
+  | { name: 'vaults' }
+  | { name: 'arena' }
+  | { name: 'vault'; address: `0x${string}` }
 
 function parseHash(hash: string): Route {
   const clean = hash.replace(/^#\/?/, '')
@@ -8,6 +11,7 @@ function parseHash(hash: string): Route {
   if (parts[0] === 'vault' && parts[1] && /^0x[0-9a-fA-F]{40}$/.test(parts[1])) {
     return { name: 'vault', address: parts[1] as `0x${string}` }
   }
+  if (parts[0] === 'arena') return { name: 'arena' }
   return { name: 'vaults' }
 }
 
@@ -23,7 +27,12 @@ export function useRoute(): Route {
 }
 
 export function navigate(route: Route): void {
-  const hash = route.name === 'vault' ? `#/vault/${route.address}` : '#/vaults'
+  const hash =
+    route.name === 'vault'
+      ? `#/vault/${route.address}`
+      : route.name === 'arena'
+        ? '#/arena'
+        : '#/vaults'
   if (window.location.hash !== hash) {
     window.location.hash = hash
   } else {

@@ -18,7 +18,15 @@ export function Header() {
             <div className="text-[11px] text-mist-400">AI under mandate, verified on-chain</div>
           </div>
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
+          <nav className="flex items-center gap-3 text-sm">
+            <button onClick={() => navigate({ name: 'vaults' })} className="text-mist-300 hover:text-mist-100">
+              Vaults
+            </button>
+            <button onClick={() => navigate({ name: 'arena' })} className="text-mist-300 hover:text-mist-100">
+              Arena
+            </button>
+          </nav>
           <Badge tone="blue">Mantle Sepolia · {config.chainId}</Badge>
         </div>
       </div>

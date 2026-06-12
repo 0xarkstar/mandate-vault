@@ -26,6 +26,7 @@ interface RawMandate {
   perfFeeBps: number
   hurdleBpsPerYear: number
   agent: `0x${string}`
+  tripMode: number
 }
 
 function normalizeMandate(raw: RawMandate): Mandate {
@@ -38,8 +39,21 @@ function normalizeMandate(raw: RawMandate): Mandate {
     mgmtFeeBpsPerYear: Number(raw.mgmtFeeBpsPerYear),
     perfFeeBps: Number(raw.perfFeeBps),
     hurdleBpsPerYear: Number(raw.hurdleBpsPerYear),
-    agent: raw.agent
+    agent: raw.agent,
+    tripMode: Number(raw.tripMode) === 1 ? 'DERISK' : 'FREEZE'
   }
+}
+
+/**
+ * Read a vault's configured RFQ venue address (the `venue()` immutable). Used
+ * to scope QuoteFilled (TCA) log queries to the vault's execution venue.
+ */
+export async function fetchVaultVenue(vault: `0x${string}`): Promise<`0x${string}`> {
+  return (await publicClient.readContract({
+    address: vault,
+    abi: vaultAbi,
+    functionName: 'venue'
+  })) as `0x${string}`
 }
 
 /**

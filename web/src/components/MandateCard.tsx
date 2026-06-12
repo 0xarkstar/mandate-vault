@@ -88,6 +88,14 @@ export function MandateCard({
         Hurdle {bpsPerYearToPct(mandate.hurdleBpsPerYear)}/yr · safe asset ={' '}
         <span className="font-medium text-mist-300">{symbols[0] ?? 'asset 0'}</span>
       </div>
+      <div className="mt-2 text-xs text-mist-400">
+        On breach:{' '}
+        {mandate.tripMode === 'DERISK' ? (
+          <span className="font-medium text-amber-soft">DERISK (sell to safe)</span>
+        ) : (
+          <span className="font-medium text-mist-300">FREEZE (hold positions)</span>
+        )}
+      </div>
     </Card>
   )
 }

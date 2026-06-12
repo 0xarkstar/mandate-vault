@@ -14,7 +14,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT/agent"
 
 # Load agent/.env into the environment (tsx does not auto-load it).
-if [ -f .env ]; then set -a; . ./.env; set +a; fi
+# .env is the manual-demo default; an orchestrator (e2e-anvil.sh) injects env
+# directly and must not be overridden by stale .env values.
+if [ -z "${VAULT_ADDRESS:-}" ] && [ -f .env ]; then set -a; . ./.env; set +a; fi
 
 echo "=== Scene 1: out-of-bounds rebalance must revert on-chain ==="
 pnpm --filter @mandate-vault/agent exec tsx src/main.ts --mode once --violate

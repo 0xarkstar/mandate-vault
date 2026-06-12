@@ -1,7 +1,7 @@
 import type { VaultState } from '../lib/types'
 import { config, addressExplorerUrl } from '../config'
 import { bpsToPct, formatUsd, formatWad, shortenAddress } from '../lib/format'
-import { deriveVaultName, templateTagline } from '../lib/vault-name'
+import { deriveVaultName, templateTagline, templateSublabel } from '../lib/vault-name'
 import { Badge } from './ui/Badge'
 import { StatTile } from './ui/Card'
 
@@ -19,6 +19,7 @@ function drawdownDistanceBps(state: VaultState): number {
 
 export function VaultHeader({ state, symbols }: { state: VaultState; symbols: readonly string[] }) {
   const template = deriveVaultName(state.mandate)
+  const sublabel = templateSublabel(template)
   const ddDistance = drawdownDistanceBps(state)
   const ddTone = ddDistance <= 0 ? 'text-rose-soft' : ddDistance < 200 ? 'text-amber-soft' : 'text-mist-100'
 
@@ -36,7 +37,8 @@ export function VaultHeader({ state, symbols }: { state: VaultState; symbols: re
               <Badge tone="green">Active</Badge>
             )}
           </div>
-          <p className="mt-1 text-sm text-mist-400">{templateTagline(template)}</p>
+          {sublabel ? <p className="mt-1 text-sm font-medium text-accent-400">{sublabel}</p> : null}
+          <p className="mt-0.5 text-sm text-mist-400">{templateTagline(template)}</p>
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-mist-400">
             <a
               href={addressExplorerUrl(config, state.address)}

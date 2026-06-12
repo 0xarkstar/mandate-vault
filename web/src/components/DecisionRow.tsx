@@ -3,30 +3,53 @@ import type { Decision, Mandate } from '../lib/types'
 import { config, txUrl } from '../config'
 import { bpsToPct, shortenAddress, timeAgo } from '../lib/format'
 import { computeClampDelta, extractRegime, extractTargetBps } from '../lib/clamp-delta'
+import { extractSnapshotMeta } from '../lib/snapshot-meta'
+import { buildCageDiagram } from '../lib/cage'
+import type { DecisionTca as TcaModel } from '../lib/fills-tca'
 import { Card } from './ui/Card'
 import { RegimeBadge } from './RegimeBadge'
+import { BehaviorBadges } from './BehaviorBadges'
+import { CageDiagram } from './CageDiagram'
+import { DecisionTca } from './DecisionTca'
 import { VerifyButton } from './VerifyButton'
+
+type Regime = 'RISK_ON' | 'NEUTRAL' | 'RISK_OFF'
 
 export function DecisionRow({
   decision,
   mandate,
-  symbols
+  symbols,
+  tca,
+  prevRegime
 }: {
   decision: Decision
   mandate: Mandate
   symbols: readonly string[]
+  tca?: TcaModel
+  prevRegime?: Regime | null
 }) {
   const [rationaleOpen, setRationaleOpen] = useState(false)
+  const [cageOpen, setCageOpen] = useState(false)
   const regime = extractRegime(decision.rawProposalJson)
   const rawBps = extractTargetBps(decision.rawProposalJson)
   const delta = computeClampDelta(rawBps, decision.clampedAllocBps)
+  const meta = extractSnapshotMeta(decision.snapshotJson)
+  const cage = buildCageDiagram(rawBps, decision.clampedAllocBps, mandate.minBps, mandate.maxBps)
+
+  const signals = {
+    regimeShift: regime !== null && prevRegime != null && regime !== prevRegime,
+    cageHit: delta.anyChanged,
+    llmFallback: meta.llmFallback,
+    playbookVersion: meta.playbookVersion
+  }
 
   return (
     <Card className="p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <span className="font-mono text-sm font-semibold text-mist-100">#{decision.epoch}</span>
           <RegimeBadge regime={regime} />
+          <BehaviorBadges signals={signals} />
           <span className="text-xs text-mist-400">{timeAgo(decision.timestamp)}</span>
         </div>
         <a
@@ -57,6 +80,22 @@ export function DecisionRow({
           ✓ Proposal was already within mandate bounds — clamp was a no-op.
         </div>
       )}
+
+      {tca ? <DecisionTca tca={tca} /> : null}
+
+      <div className="mt-3">
+        <button
+          onClick={() => setCageOpen((o) => !o)}
+          className="text-xs font-medium text-mist-300 hover:text-mist-100"
+        >
+          {cageOpen ? '▾ Hide cage diagram' : '▸ Show cage diagram'}
+        </button>
+        {cageOpen ? (
+          <div className="mt-2">
+            <CageDiagram diagram={cage} symbols={symbols} />
+          </div>
+        ) : null}
+      </div>
 
       <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">

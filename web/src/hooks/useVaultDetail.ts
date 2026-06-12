@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchTokenMeta, fetchVaultState } from '../chain/reads'
 import { fetchDecisions } from '../chain/decisions'
-import type { Decision, VaultState } from '../lib/types'
+import { fetchFills } from '../chain/fills'
+import type { Decision, Fill, VaultState } from '../lib/types'
 
 interface DetailResult {
   loading: boolean
@@ -9,6 +10,7 @@ interface DetailResult {
   state: VaultState | null
   symbols: string[]
   decisions: Decision[]
+  fills: Fill[]
   decisionsLoading: boolean
   reload: () => void
 }
@@ -35,6 +37,7 @@ export function useVaultDetail(address: `0x${string}`): DetailResult {
   const [state, setState] = useState<VaultState | null>(null)
   const [symbols, setSymbols] = useState<string[]>([])
   const [decisions, setDecisions] = useState<Decision[]>([])
+  const [fills, setFills] = useState<Fill[]>([])
   const [nonce, setNonce] = useState(0)
 
   const reload = useCallback(() => setNonce((n) => n + 1), [])
@@ -68,10 +71,18 @@ export function useVaultDetail(address: `0x${string}`): DetailResult {
     setDecisionsLoading(true)
     ;(async () => {
       try {
-        const d = await fetchDecisions(address)
-        if (!cancelled) setDecisions(d)
+        const [d, f] = await Promise.all([
+          fetchDecisions(address),
+          fetchFills(address).catch(() => [])
+        ])
+        if (cancelled) return
+        setDecisions(d)
+        setFills(f)
       } catch {
-        if (!cancelled) setDecisions([])
+        if (!cancelled) {
+          setDecisions([])
+          setFills([])
+        }
       } finally {
         if (!cancelled) setDecisionsLoading(false)
       }
@@ -81,5 +92,5 @@ export function useVaultDetail(address: `0x${string}`): DetailResult {
     }
   }, [address, nonce])
 
-  return { loading, error, state, symbols, decisions, decisionsLoading, reload }
+  return { loading, error, state, symbols, decisions, fills, decisionsLoading, reload }
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { deriveVaultName, templateTagline } from '../src/lib/vault-name'
+import { deriveVaultName, templateTagline, templateSublabel } from '../src/lib/vault-name'
 
 const A = '0x0000000000000000000000000000000000000001' as const
 const B = '0x0000000000000000000000000000000000000002' as const
@@ -34,5 +34,17 @@ describe('deriveVaultName', () => {
     for (const t of ['Conservative', 'Balanced', 'Aggressive', 'Custom Mandate'] as const) {
       expect(templateTagline(t).length).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('templateSublabel', () => {
+  it('frames each preset template as a treasury use-case', () => {
+    expect(templateSublabel('Conservative')).toBe('Emergency fund floor')
+    expect(templateSublabel('Balanced')).toBe('Treasury working capital')
+    expect(templateSublabel('Aggressive')).toBe('Growth sleeve')
+  })
+
+  it('has no sublabel for a custom mandate', () => {
+    expect(templateSublabel('Custom Mandate')).toBeNull()
   })
 })

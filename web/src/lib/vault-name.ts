@@ -38,3 +38,20 @@ export function templateTagline(template: VaultTemplate): string {
       return 'Institutional custom IPS'
   }
 }
+
+/**
+ * A presentation sublabel that frames each template as a treasury use-case,
+ * shown under the vault name. Custom mandates have no preset use-case.
+ */
+export function templateSublabel(template: VaultTemplate): string | null {
+  switch (template) {
+    case 'Conservative':
+      return 'Emergency fund floor'
+    case 'Balanced':
+      return 'Treasury working capital'
+    case 'Aggressive':
+      return 'Growth sleeve'
+    case 'Custom Mandate':
+      return null
+  }
+}

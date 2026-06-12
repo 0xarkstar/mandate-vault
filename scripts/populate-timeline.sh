@@ -14,7 +14,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT/agent"
 
-if [ -f .env ]; then set -a; . ./.env; set +a; fi
+# .env is the manual-demo default; an orchestrator (e2e-anvil.sh) injects env
+# directly and must not be overridden by stale .env values.
+if [ -z "${VAULT_ADDRESS:-}" ] && [ -f .env ]; then set -a; . ./.env; set +a; fi
 
 STEPS="${1:-12}"
 

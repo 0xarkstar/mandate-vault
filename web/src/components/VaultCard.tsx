@@ -1,6 +1,6 @@
 import type { VaultEntry } from '../hooks/useVaults'
 import { bpsToPct, formatCooldown, formatUsd, formatWad, shortenAddress } from '../lib/format'
-import { deriveVaultName, templateTagline } from '../lib/vault-name'
+import { deriveVaultName, templateTagline, templateSublabel } from '../lib/vault-name'
 import { navigate } from '../lib/router'
 import { AllocationBar } from './AllocationBar'
 import { Badge, Chip } from './ui/Badge'
@@ -9,12 +9,14 @@ import { Card } from './ui/Card'
 export function VaultCard({ entry }: { entry: VaultEntry }) {
   const { state, symbols } = entry
   const template = deriveVaultName(state.mandate)
+  const sublabel = templateSublabel(template)
 
   return (
     <Card className="p-5" onClick={() => navigate({ name: 'vault', address: state.address })}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold tracking-tight text-mist-100">{template}</h3>
+          {sublabel ? <p className="text-xs font-medium text-accent-400">{sublabel}</p> : null}
           <p className="mt-0.5 text-xs text-mist-400">{templateTagline(template)}</p>
         </div>
         <StatusBadge state={state} />

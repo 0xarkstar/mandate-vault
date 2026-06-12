@@ -4,6 +4,7 @@ import { Header } from './components/Header'
 import { Footer } from './components/Footer'
 import { VaultsPage } from './pages/VaultsPage'
 import { VaultDetailPage } from './pages/VaultDetailPage'
+import { ArenaPage } from './pages/ArenaPage'
 
 export function App() {
   const route = useRoute()
@@ -15,6 +16,8 @@ export function App() {
         <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
           {route.name === 'vault' ? (
             <VaultDetailPage address={route.address} />
+          ) : route.name === 'arena' ? (
+            <ArenaPage />
           ) : (
             <VaultsPage />
           )}
