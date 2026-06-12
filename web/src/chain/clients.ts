@@ -9,5 +9,11 @@ import { mantleSepolia } from './chain'
  */
 export const publicClient: PublicClient = createPublicClient({
   chain: mantleSepolia(config),
-  transport: http(config.rpcUrl, { batch: true })
+  // batchSize capped: free public gateways truncate or reject large JSON-RPC
+  // batches; retries with backoff ride out per-IP rate-limit windows.
+  transport: http(config.rpcUrl, {
+    batch: { batchSize: 5, wait: 50 },
+    retryCount: 4,
+    retryDelay: 2000
+  })
 })

@@ -9,10 +9,12 @@ import type { Snapshot } from '@mandate-vault/clamp-core'
  */
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
+/** Truly-free ($0 prompt+completion) models, live-verified 2026-06-13.
+ * qwen3-next/llama-3.3 free tiers were upstream-429ing and got replaced. */
 const MODELS = [
   'openai/gpt-oss-120b:free',
-  'qwen/qwen3-next-80b-a3b-instruct:free',
-  'meta-llama/llama-3.3-70b-instruct:free'
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'google/gemma-4-31b-it:free'
 ] as const
 const ATTEMPTS_PER_MODEL = 2
 const TIMEOUT_MS = 30_000
