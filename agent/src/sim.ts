@@ -51,6 +51,7 @@ export interface SimOptions {
   steps: number
   seed?: number
   rfq?: RfqConfig
+  playbookVersion?: number
 }
 
 function sleep(ms: number): Promise<void> {
@@ -117,7 +118,8 @@ export async function runSim(opts: SimOptions): Promise<DecideOutcome[]> {
       fundingSymbol: opts.fundingSymbol,
       funding,
       vaultState: state,
-      rfq: opts.rfq
+      rfq: opts.rfq,
+      playbookVersion: opts.playbookVersion
     })
     if (outcome.tripped) {
       // The rebalance tx tripped the drawdown protection — no decision was

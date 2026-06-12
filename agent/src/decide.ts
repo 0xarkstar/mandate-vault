@@ -44,6 +44,10 @@ export interface DecideOptions {
   vaultState?: VaultState
   /** RFQ execution config — when set, fills route through posted MM quotes. */
   rfq?: RfqConfig
+  /** Compiled PolicyIndex version the deliberation read (0 = pre-learning). */
+  playbookVersion?: number
+  /** Agent Arena: pin the proposer to a single model (no fallback chain). */
+  modelOverride?: string
 }
 
 export interface DecideOutcome {
@@ -117,7 +121,8 @@ export async function decideOnce(opts: DecideOptions): Promise<DecideOutcome> {
     const llm = await proposeAllocation(
       buildSnapshot({ chainId, vault, ts: Math.floor(Date.now() / 1000), funding, vaultState, llmFallback: false }),
       mandate,
-      openRouterApiKey
+      openRouterApiKey,
+      opts.modelOverride
     )
     llmFallback = llm === null
     proposerModel = llm?.model ?? null
@@ -137,7 +142,8 @@ export async function decideOnce(opts: DecideOptions): Promise<DecideOutcome> {
     ts: Math.floor(Date.now() / 1000),
     funding,
     vaultState,
-    llmFallback
+    llmFallback,
+    playbookVersion: opts.playbookVersion
   })
   const snapshotJson = canonicalJson(snapshot)
   const rawProposalJson = canonicalJson(proposal)
@@ -158,7 +164,7 @@ export async function decideOnce(opts: DecideOptions): Promise<DecideOutcome> {
     proposal,
     verdict: review.verdict,
     maxSlippageBps: opts.rfq?.maxSlippageBps ?? 50,
-    playbookVersion: 0,
+    playbookVersion: opts.playbookVersion ?? 0,
     snapshotHash: hashString(snapshotJson)
   })
   if (gate.action === 'hold') {

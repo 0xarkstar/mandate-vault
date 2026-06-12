@@ -38,7 +38,11 @@ export const SnapshotSchema = z
       hwm: z.string(),
       tripped: z.boolean()
     }),
-    llmFallback: z.boolean().optional()
+    llmFallback: z.boolean().optional(),
+    /** Version of the compiled PolicyIndex the deliberation read (harness
+     * invariant #2 — every decision replays against the playbook it used).
+     * Optional so pre-learning epochs keep verifying byte-for-byte. */
+    playbookVersion: z.number().int().nonnegative().optional()
   })
   .passthrough()
 

@@ -18,10 +18,12 @@ export interface SnapshotInputs {
   funding: FundingSnapshot
   vaultState: VaultState
   llmFallback: boolean
+  /** PolicyIndex version the deliberation engine read (0 = pre-learning). */
+  playbookVersion?: number
 }
 
 export function buildSnapshot(inputs: SnapshotInputs): Snapshot {
-  const { chainId, vault, ts, funding, vaultState, llmFallback } = inputs
+  const { chainId, vault, ts, funding, vaultState, llmFallback, playbookVersion } = inputs
 
   const prices: Record<string, string> = {}
   for (const [addr, price] of Object.entries(vaultState.prices)) {
@@ -46,11 +48,13 @@ export function buildSnapshot(inputs: SnapshotInputs): Snapshot {
     }
   }
 
-  // Only attach the flag when true, so a normal snapshot stays minimal and the
-  // verifier's recomputation matches byte-for-byte (canonicalJson drops it when
-  // undefined anyway, but keeping it conditional is clearer).
+  // Only attach optional fields when meaningful, so a normal snapshot stays
+  // minimal and the verifier's recomputation matches byte-for-byte
+  // (canonicalJson drops undefined anyway, but conditional is clearer).
   const withFlag = llmFallback ? { ...snapshot, llmFallback: true } : snapshot
+  const withPlaybook =
+    playbookVersion != null && playbookVersion > 0 ? { ...withFlag, playbookVersion } : withFlag
 
   // Defensive: parse through the schema so a drift from clamp-core fails loud.
-  return SnapshotSchema.parse(withFlag) as Snapshot
+  return SnapshotSchema.parse(withPlaybook) as Snapshot
 }

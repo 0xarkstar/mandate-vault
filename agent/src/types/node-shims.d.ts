@@ -42,6 +42,14 @@ declare module 'node:util' {
 
 declare module 'node:fs' {
   export function realpathSync(path: string): string
+  export function existsSync(path: string): boolean
+  export function readFileSync(path: string, encoding: 'utf8'): string
+  export function writeFileSync(path: string, data: string, encoding: 'utf8'): void
+  export function mkdirSync(path: string, options?: { recursive?: boolean }): void
+}
+
+declare module 'node:path' {
+  export function dirname(path: string): string
 }
 
 declare module 'node:url' {

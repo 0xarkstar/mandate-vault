@@ -118,15 +118,18 @@ export async function callModel(
 /**
  * Query the model fallback chain. 2 attempts per model, then the next model.
  * Returns null when every model fails — the caller then uses fallbackAllocation
- * with llmFallback: true.
+ * with llmFallback: true. `modelOverride` pins a single model (Agent Arena:
+ * identical mandate/data, different brains, scored on execution quality).
  */
 export async function proposeAllocation(
   snapshot: Snapshot,
   mandate: MandateView,
-  apiKey: string
+  apiKey: string,
+  modelOverride?: string
 ): Promise<LlmResult | null> {
   const userPrompt = buildUserPrompt(snapshot, mandate)
-  for (const model of MODELS) {
+  const models: readonly string[] = modelOverride ? [modelOverride] : MODELS
+  for (const model of models) {
     for (let attempt = 0; attempt < ATTEMPTS_PER_MODEL; attempt++) {
       const content = await callModel(model, apiKey, SYSTEM_PROMPT, userPrompt)
       if (content == null) continue

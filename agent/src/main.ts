@@ -8,6 +8,7 @@ import { decideOnce } from './decide.js'
 import { runSim } from './sim.js'
 import { makeDemoMm } from './mm/demo-mm.js'
 import type { RfqConfig } from './execute/submit.js'
+import { loadPolicyIndex } from './tools/learn.js'
 
 /**
  * Agent CLI entrypoint.
@@ -27,6 +28,8 @@ const CliSchema = z.object({
   violate: z.boolean().default(false),
   vault: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
   seed: z.coerce.number().int().optional(),
+  /** Agent Arena: pin the proposer to one model for this run. */
+  model: z.string().min(1).optional(),
   /** Comma-separated bps list, e.g. "3000,6500,500" (demo setup; bypasses LLM only). */
   'force-target': z
     .string()
@@ -48,6 +51,7 @@ function parseCli(argv: string[]): z.infer<typeof CliSchema> {
       violate: { type: 'boolean' },
       vault: { type: 'string' },
       seed: { type: 'string' },
+      model: { type: 'string' },
       'force-target': { type: 'string' }
     }
   })
@@ -81,6 +85,9 @@ async function run(argv: string[], env: NodeJS.ProcessEnv): Promise<void> {
   }
 
   const rfq = buildRfqConfig(cfg)
+  // The compiled PolicyIndex (learning engine output). Deliberation reads only
+  // this version number + hints — never raw history (hot path stays fast).
+  const playbookVersion = loadPolicyIndex(env.POLICY_INDEX_PATH ?? 'data/policy-index.json')?.version ?? 0
 
   if (cli.mode === 'sim') {
     await runSim({
@@ -94,7 +101,8 @@ async function run(argv: string[], env: NodeJS.ProcessEnv): Promise<void> {
       fundingSymbol: cfg.fundingSymbol,
       steps: cli.steps,
       seed: cli.seed,
-      rfq
+      rfq,
+      playbookVersion
     })
     return
   }
@@ -110,7 +118,9 @@ async function run(argv: string[], env: NodeJS.ProcessEnv): Promise<void> {
     fundingSymbol: cfg.fundingSymbol,
     violate: cli.violate,
     forceTarget: parseForceTarget(cli['force-target']),
-    rfq
+    rfq,
+    playbookVersion,
+    modelOverride: cli.model
   })
 }
 
