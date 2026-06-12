@@ -196,25 +196,34 @@ key can race the sequencer nonce ("nonce too low") — retry.
 
 ## 6. BLOCKED ON USER (Sepolia/live track)
 
-1. ~~Sepolia faucet MNT~~ DONE 2026-06-12 (10 MNT each; deploy consumed ~1).
-2. **OpenRouter free API key** → `agent/.env OPENROUTER_API_KEY`. Real-LLM
-   path (proposer AND the new reviewer) is still UNTESTED — verify FIRST.
-3. **Etherscan API key** (V2, chainid 5003) → `contracts/.env
-   ETHERSCAN_API_KEY` for mantlescan verification.
-4. **CF Pages deploy needs explicit user go-ahead** (publishing = public
-   surface). Build is ready (`web/dist` with Sepolia env baked):
-   `cd web && npx wrangler pages project create mandate-vault
-   --production-branch=main && npx wrangler pages deploy dist
-   --project-name=mandate-vault --branch=main` (wrangler already authed as
-   0930bbc@gmail.com).
-5. **Free keyed RPC endpoint** (Tenderly or Alchemy account, Mantle Sepolia)
-   → `agent/.env RPC_URL` + rebuild web with it in `VITE_RPC_URL`. Kills the
-   public-gateway rate-limit lottery for the demo video recording.
+ALL FOUR USER ITEMS LANDED 2026-06-13 — executed same-session:
+1. ~~Sepolia faucet MNT~~ DONE (deploy consumed ~1 of 10 MNT each).
+2. ~~OpenRouter key~~ DONE + **real-LLM path VERIFIED on Sepolia**: proposer
+   models live-smoked; MODELS chain updated to currently-healthy truly-free
+   ($0) models: `openai/gpt-oss-120b:free` →
+   `nvidia/nemotron-3-super-120b-a12b:free` → `google/gemma-4-31b-it:free`.
+   **Agent Arena ran with pinned models** (template vaults, $5k each):
+   - Conservative + gpt-oss-120b → real proposal RISK_OFF [8000,2000],
+     RFQ fill +4bps TCA (fallback=false) ✓
+   - Balanced + nemotron-3-ultra → upstream 429 at that moment → honest
+     deterministic fallback hold (fallback=true recorded in snapshot)
+   - Aggressive + gemma-4-31b → real proposal RISK_OFF [8000,2000,0],
+     RFQ fill +4bps TCA (fallback=false) ✓
+3. ~~Etherscan key~~ DONE — **all 10 contracts mantlescan-VERIFIED** (forge
+   script --broadcast --resume --verify --private-key needed; demo vault
+   matched via identical bytecode).
+4. ~~CF Pages~~ DEPLOYED: **https://mandate-vault.pages.dev** (project
+   `mandate-vault`, wrangler authed 0930bbc). Web ships official RPC +
+   batchSize-5 transport — a fresh viewer's arena load (~10 requests) fits
+   the per-IP budget (verified from a second IP via OCI; the DEV machine's
+   IP is rate-limit-burned across all free gateways from this session, so
+   local checks of the live site will 429 — that is expected, not a bug).
 
-When unblocked: mantlescan verify (forge verify-contract, V2 chainid 5003) →
-re-run timeline/arena with the real LLM (pin different `--model` per template
-vault for the arena story) → README/pitch finalize → 2-min video → DoraHacks
-submit (buffer 6/15). Optional: Mantle TG/Discord for ERC-8004 registration.
+STILL OPTIONAL: free keyed RPC (Tenderly/Alchemy) for heavy demo-video use;
+Mantle TG/Discord ERC-8004 registration.
+
+REMAINING ROADMAP: README/pitch finalize (gas + arena numbers are in §6a) →
+2-min video → DoraHacks BUIDL submit (buffer 6/15, deadline 6/16 00:59 KST).
 
 ## 7. Verified facts — don't re-discover
 
