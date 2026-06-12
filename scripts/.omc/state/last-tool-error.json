@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"ls /Users/arkstar/Projects/mandate-vault/README.md /Users/arkstar/Projects/mandate-vault/docs/ 2>&1\",\"description\":\"Check README and docs presence\"}",
-  "error": "Exit code 1\nls: /Users/arkstar/Projects/mandate-vault/README.md: No such file or directory\n/Users/arkstar/Projects/mandate-vault/docs/:\nDESIGN.md\nHARNESS.md\nSUBMISSION.md",
-  "timestamp": "2026-06-12T09:18:08.197Z",
-  "retry_count": 1
-}
