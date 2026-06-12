@@ -69,6 +69,32 @@ contract MandateVaultTest is Test {
         vault.rebalance(target, '{"snap":1}', '{"raw":1}', "test rationale");
     }
 
+    /// Balanced-style custom vault with an explicit trip mode.
+    function _createCustomVault(MandateVault.TripMode mode) internal returns (address) {
+        address[] memory assets = new address[](2);
+        assets[0] = address(mUSD);
+        assets[1] = address(mMETH);
+        uint16[] memory minBps = new uint16[](2);
+        minBps[0] = 3000;
+        uint16[] memory maxBps = new uint16[](2);
+        maxBps[0] = 10_000;
+        maxBps[1] = 7000;
+        return factory.createCustomVault(
+            MandateVault.Mandate({
+                assets: assets,
+                minBps: minBps,
+                maxBps: maxBps,
+                maxDrawdownBps: 1000,
+                rebalanceCooldown: 1 hours,
+                mgmtFeeBpsPerYear: 100,
+                perfFeeBps: 1000,
+                hurdleBpsPerYear: 450,
+                agent: agent,
+                tripMode: mode
+            })
+        );
+    }
+
     // ------------------------------------------------------ deposit/withdraw
 
     function test_DepositMintsShares() public view {
@@ -189,8 +215,11 @@ contract MandateVaultTest is Test {
 
     // --------------------------------------------------------------- drawdown
 
-    function test_DrawdownTripDerisksAndSuspends() public {
+    /// Templates default to FREEZE: trip suspends the agent and HOLDS positions
+    /// — no forced dump into the crash.
+    function test_DrawdownTripFreezeHoldsAndSuspends() public {
         _rebalance(3000, 7000);
+        uint256 methBalBefore = mMETH.balanceOf(address(vault));
         // crash mMETH 40% → portfolio −28% > 10% DD
         oracle.setPrice(address(mMETH), (METH_PRICE * 60) / 100);
         assertTrue(vault.drawdownBreached());
@@ -199,9 +228,8 @@ contract MandateVaultTest is Test {
         vault.tripCheck();
         assertTrue(vault.tripped());
 
-        uint16[] memory alloc = vault.currentAllocationBps();
-        assertEq(alloc[1], 0); // fully de-risked to mUSD
-        assertApproxEqAbs(alloc[0], 10_000, 5);
+        // positions HELD — the mMETH sleeve was not sold
+        assertEq(mMETH.balanceOf(address(vault)), methBalBefore);
 
         // agent is suspended
         vm.warp(block.timestamp + 2 hours);
@@ -211,6 +239,36 @@ contract MandateVaultTest is Test {
         vm.prank(agent);
         vm.expectRevert(MandateVault.VaultTripped.selector);
         vault.rebalance(target, "", "", "");
+    }
+
+    /// DERISK mode (opt-in via custom mandate): trip sells every non-safe
+    /// sleeve into mUSD via the venue, then suspends.
+    function test_DrawdownTripDeriskSellsToSafe() public {
+        MandateVault dv = MandateVault(_createCustomVault(MandateVault.TripMode.DERISK));
+        mUSD.mint(depositor, DEPOSIT);
+        vm.startPrank(depositor);
+        mUSD.approve(address(dv), type(uint256).max);
+        dv.deposit(DEPOSIT);
+        vm.stopPrank();
+
+        uint16[] memory target = new uint16[](2);
+        target[0] = 3000;
+        target[1] = 7000;
+        vm.prank(agent);
+        dv.rebalance(target, "", "", "");
+
+        oracle.setPrice(address(mMETH), (METH_PRICE * 60) / 100);
+        assertTrue(dv.drawdownBreached());
+
+        vm.prank(rando);
+        dv.tripCheck();
+        assertTrue(dv.tripped());
+
+        uint16[] memory alloc = dv.currentAllocationBps();
+        assertEq(alloc[1], 0); // fully de-risked to mUSD
+        assertApproxEqAbs(alloc[0], 10_000, 5);
+        // restore the oracle for sibling assertions
+        oracle.setPrice(address(mMETH), METH_PRICE);
     }
 
     function test_RebalanceTripsInsteadOfExecuting() public {
@@ -229,7 +287,7 @@ contract MandateVaultTest is Test {
     }
 
     function test_ResumeAfterTrip() public {
-        test_DrawdownTripDerisksAndSuspends();
+        test_DrawdownTripFreezeHoldsAndSuspends();
 
         vault.resume(); // owner = this test contract (factory.createVault caller)
         assertFalse(vault.tripped());
@@ -347,7 +405,8 @@ contract MandateVaultTest is Test {
                 mgmtFeeBpsPerYear: 50,
                 perfFeeBps: 500,
                 hurdleBpsPerYear: 450,
-                agent: agent
+                agent: agent,
+                tripMode: MandateVault.TripMode.DERISK
             })
         );
         assertEq(MandateVault(v).mandate().minBps[1], 1000);
@@ -375,7 +434,8 @@ contract MandateVaultTest is Test {
                 mgmtFeeBpsPerYear: 100,
                 perfFeeBps: 1000,
                 hurdleBpsPerYear: 450,
-                agent: agent
+                agent: agent,
+                tripMode: MandateVault.TripMode.FREEZE
             })
         );
     }

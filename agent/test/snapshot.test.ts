@@ -25,7 +25,12 @@ const vaultState: VaultState = {
   prices: {
     [MUSD.toLowerCase()]: 1_000000000000000000n,
     [MMETH.toLowerCase()]: 3_000000000000000000000n
-  }
+  },
+  balances: {
+    [MUSD.toLowerCase()]: 4_000n * 10n ** 18n,
+    [MMETH.toLowerCase()]: 2n * 10n ** 18n
+  },
+  totalValue: 10_000n * 10n ** 18n
 }
 
 const inputs: SnapshotInputs = {

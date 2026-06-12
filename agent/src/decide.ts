@@ -12,6 +12,7 @@ import { readVaultState, type VaultState } from './feeds/vault.js'
 import { buildSnapshot } from './snapshot.js'
 import { proposeAllocation, FALLBACK_RATIONALE } from './llm.js'
 import { buildViolateTarget } from './violate.js'
+import { planRfqExecution, postPickedQuotes, parseFills, type Fill, type RfqConfig } from './execute/submit.js'
 
 /**
  * One decision cycle: collect inputs → LLM proposes → clamp-core cages →
@@ -38,6 +39,8 @@ export interface DecideOptions {
   funding?: FundingSnapshot
   /** Optional pre-read vault state (sim avoids a double read). */
   vaultState?: VaultState
+  /** RFQ execution config — when set, fills route through posted MM quotes. */
+  rfq?: RfqConfig
 }
 
 export interface DecideOutcome {
@@ -53,6 +56,11 @@ export interface DecideOutcome {
   /** Set when the rebalance tx triggered the drawdown trip instead of logging a decision. */
   tripped?: boolean
   llmFallback: boolean
+  /** Set when the RFQ slippage gate froze the cycle — no fill was attempted. */
+  held?: boolean
+  holdReason?: string
+  /** TCA: RFQ fills (fill vs oracle mid) recorded by the venue. */
+  fills?: Fill[]
 }
 
 function logLine(o: DecideOutcome): string {
@@ -133,6 +141,37 @@ export async function decideOnce(opts: DecideOptions): Promise<DecideOutcome> {
 
   const { clampedBps, violations } = clamp(proposal.targetAllocBps, bounds)
 
+  // ---- EXECUTION engine (no LLM from here on) ----
+  // RFQ: compute legs, collect signed MM quotes, gate on slippage, post the
+  // winners so the vault's rebalance() consumes them atomically.
+  if (opts.rfq) {
+    const plan = await planRfqExecution(opts.rfq, chainId, vaultState, clampedBps)
+    if (plan.action === 'freeze') {
+      const outcome: DecideOutcome = {
+        epoch: vaultState.epoch,
+        regime: proposal.regime,
+        rawBps: proposal.targetAllocBps,
+        clampedBps,
+        violations: violations.length,
+        llmFallback,
+        held: true,
+        holdReason: plan.reason
+      }
+      // eslint-disable-next-line no-console -- CLI user-facing output
+      console.log(`slippage gate FROZE this cycle — no fill attempted. ${plan.reason}`)
+      return outcome
+    }
+    await postPickedQuotes(clients, opts.rfq.venue, plan.plans)
+    for (const p of plan.plans) {
+      // eslint-disable-next-line no-console -- CLI user-facing output
+      console.log(
+        p.pick
+          ? `leg ${p.leg.assetIn}→${p.leg.assetOut} amountIn=${p.leg.amountIn} quote=${p.pick.mmName} (${p.slippageBps}bps vs mid)`
+          : `leg ${p.leg.assetIn}→${p.leg.assetOut} amountIn=${p.leg.amountIn} no valid quote — oracle-mid fallback`
+      )
+    }
+  }
+
   const txHash = await clients.walletClient.writeContract({
     address: vault,
     abi: mandateVaultAbi,
@@ -164,6 +203,7 @@ export async function decideOnce(opts: DecideOptions): Promise<DecideOutcome> {
     return outcome
   }
 
+  const fills = opts.rfq ? parseFills(receipt) : []
   const outcome: DecideOutcome = {
     epoch: decision.args.epoch,
     regime: proposal.regime,
@@ -171,10 +211,15 @@ export async function decideOnce(opts: DecideOptions): Promise<DecideOutcome> {
     clampedBps,
     violations: violations.length,
     txHash,
-    llmFallback
+    llmFallback,
+    ...(fills.length > 0 ? { fills } : {})
   }
   // eslint-disable-next-line no-console -- CLI user-facing output
   console.log(logLine(outcome))
+  for (const f of fills) {
+    // eslint-disable-next-line no-console -- CLI user-facing output
+    console.log(`  TCA fill mm=${f.mm} ${f.amountIn}→${f.amountOut} (mid ${f.oracleMidOut}, ${f.improvementBps >= 0 ? '+' : ''}${f.improvementBps}bps)`)
+  }
   return outcome
 }
 

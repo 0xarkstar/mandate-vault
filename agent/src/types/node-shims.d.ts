@@ -39,3 +39,15 @@ declare module 'node:util' {
   }
   export function parseArgs(config: ParseArgsConfig): ParseArgsResult
 }
+
+declare module 'node:fs' {
+  export function realpathSync(path: string): string
+}
+
+declare module 'node:url' {
+  export function pathToFileURL(path: string): { href: string }
+}
+
+declare module 'node:crypto' {
+  export function randomBytes(size: number): { toString(encoding: 'hex'): string }
+}

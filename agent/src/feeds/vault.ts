@@ -1,5 +1,5 @@
 import type { Address, PublicClient } from 'viem'
-import { mandateVaultAbi, mockOracleAbi } from '@mandate-vault/abi'
+import { mandateVaultAbi, mockOracleAbi, mockErc20Abi } from '@mandate-vault/abi'
 
 /**
  * On-chain reads for the agent: the mandate (bounds + assets), live allocation,
@@ -24,6 +24,12 @@ export interface VaultState {
   epoch: bigint
   /** Oracle price per asset (1e18), keyed by lowercase asset address. */
   prices: Record<string, bigint>
+  /** Raw token balance per asset, keyed by lowercase asset address. The RFQ
+   * leg computation replicates the contract's integer math on these exact
+   * values, so off-chain legs match on-chain swap amounts. */
+  balances: Record<string, bigint>
+  /** Total vault value in USD (1e18) — same read the contract uses. */
+  totalValue: bigint
 }
 
 type RawMandate = {
@@ -57,31 +63,46 @@ export async function readVaultState(
 ): Promise<VaultState> {
   const base = { address: vault, abi: mandateVaultAbi } as const
 
-  const [rawMandate, rawAlloc, sharePrice, hwm, tripped, epoch] = (await Promise.all([
+  const [rawMandate, rawAlloc, sharePrice, hwm, tripped, epoch, totalValue] = (await Promise.all([
     publicClient.readContract({ ...base, functionName: 'mandate' }),
     publicClient.readContract({ ...base, functionName: 'currentAllocationBps' }),
     publicClient.readContract({ ...base, functionName: 'sharePrice' }),
     publicClient.readContract({ ...base, functionName: 'hwmSharePrice' }),
     publicClient.readContract({ ...base, functionName: 'tripped' }),
-    publicClient.readContract({ ...base, functionName: 'epoch' })
-  ])) as [RawMandate, readonly number[], bigint, bigint, boolean, bigint]
+    publicClient.readContract({ ...base, functionName: 'epoch' }),
+    publicClient.readContract({ ...base, functionName: 'totalValue' })
+  ])) as [RawMandate, readonly number[], bigint, bigint, boolean, bigint, bigint]
 
   const mandate = normalizeMandate(rawMandate)
 
-  const priceResults = (await Promise.all(
-    mandate.assets.map((asset) =>
-      publicClient.readContract({
-        address: oracle,
-        abi: mockOracleAbi,
-        functionName: 'price',
-        args: [asset]
-      })
-    )
-  )) as bigint[]
+  const [priceResults, balanceResults] = await Promise.all([
+    Promise.all(
+      mandate.assets.map((asset) =>
+        publicClient.readContract({
+          address: oracle,
+          abi: mockOracleAbi,
+          functionName: 'price',
+          args: [asset]
+        })
+      )
+    ) as Promise<bigint[]>,
+    Promise.all(
+      mandate.assets.map((asset) =>
+        publicClient.readContract({
+          address: asset,
+          abi: mockErc20Abi,
+          functionName: 'balanceOf',
+          args: [vault]
+        })
+      )
+    ) as Promise<bigint[]>
+  ])
 
   const prices: Record<string, bigint> = {}
+  const balances: Record<string, bigint> = {}
   mandate.assets.forEach((asset, i) => {
     prices[asset.toLowerCase()] = priceResults[i]!
+    balances[asset.toLowerCase()] = balanceResults[i]!
   })
 
   return {
@@ -91,6 +112,8 @@ export async function readVaultState(
     hwm,
     tripped,
     epoch,
-    prices
+    prices,
+    balances,
+    totalValue
   }
 }

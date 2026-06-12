@@ -25,7 +25,12 @@ const EnvSchema = z.object({
   OPENROUTER_API_KEY: z.string().min(1, 'OPENROUTER_API_KEY is required'),
   ORACLE_ADDRESS: hexAddress.optional(),
   ORACLE_OWNER_KEY: hexPrivateKey.optional(),
-  FUNDING_SYMBOL: z.string().min(1).default('ETHUSDT')
+  FUNDING_SYMBOL: z.string().min(1).default('ETHUSDT'),
+  /** RFQ execution (optional — absent = direct venue fallback path). */
+  RFQ_VENUE_ADDRESS: hexAddress.optional(),
+  MM_KEY_TIGHT: hexPrivateKey.optional(),
+  MM_KEY_WIDE: hexPrivateKey.optional(),
+  RFQ_MAX_SLIPPAGE_BPS: z.coerce.number().int().min(0).max(10_000).default(50)
 })
 
 export type AgentConfig = {
@@ -37,6 +42,10 @@ export type AgentConfig = {
   oracleAddress?: `0x${string}`
   oracleOwnerKey?: `0x${string}`
   fundingSymbol: string
+  rfqVenueAddress?: `0x${string}`
+  mmKeyTight?: `0x${string}`
+  mmKeyWide?: `0x${string}`
+  rfqMaxSlippageBps: number
 }
 
 /**
@@ -59,7 +68,11 @@ export function loadConfig(env: NodeJS.ProcessEnv, vaultOverride?: string): Agen
     openRouterApiKey: e.OPENROUTER_API_KEY,
     oracleAddress: e.ORACLE_ADDRESS as `0x${string}` | undefined,
     oracleOwnerKey: e.ORACLE_OWNER_KEY as `0x${string}` | undefined,
-    fundingSymbol: e.FUNDING_SYMBOL
+    fundingSymbol: e.FUNDING_SYMBOL,
+    rfqVenueAddress: e.RFQ_VENUE_ADDRESS as `0x${string}` | undefined,
+    mmKeyTight: e.MM_KEY_TIGHT as `0x${string}` | undefined,
+    mmKeyWide: e.MM_KEY_WIDE as `0x${string}` | undefined,
+    rfqMaxSlippageBps: e.RFQ_MAX_SLIPPAGE_BPS
   }
 }
 

@@ -84,7 +84,8 @@ contract VaultFactory {
                 mgmtFeeBpsPerYear: 100, // 1.00%
                 perfFeeBps: 1000, // 10% of gains above hurdle
                 hurdleBpsPerYear: 450, // ~USDY/T-bill baseline
-                agent: agent
+                agent: agent,
+                tripMode: MandateVault.TripMode.FREEZE
             });
         } else {
             revert UnknownTemplate();
@@ -117,7 +118,8 @@ contract VaultFactory {
             mgmtFeeBpsPerYear: 100,
             perfFeeBps: 1000,
             hurdleBpsPerYear: 450,
-            agent: agent
+            agent: agent,
+            tripMode: MandateVault.TripMode.FREEZE
         });
     }
 }

@@ -4,6 +4,7 @@ import { makeClients, type Clients } from './chain.js'
 import { readVaultState } from './feeds/vault.js'
 import { decideOnce, type DecideOutcome } from './decide.js'
 import { fetchFunding } from './feeds/funding.js'
+import type { RfqConfig } from './execute/submit.js'
 
 /**
  * Accelerated simulation for AC-9: drives N decision cycles on a short-cooldown
@@ -49,6 +50,7 @@ export interface SimOptions {
   fundingSymbol: string
   steps: number
   seed?: number
+  rfq?: RfqConfig
 }
 
 function sleep(ms: number): Promise<void> {
@@ -114,7 +116,8 @@ export async function runSim(opts: SimOptions): Promise<DecideOutcome[]> {
       chainId: opts.chainId,
       fundingSymbol: opts.fundingSymbol,
       funding,
-      vaultState: state
+      vaultState: state,
+      rfq: opts.rfq
     })
     if (outcome.tripped) {
       // The rebalance tx tripped the drawdown protection — no decision was

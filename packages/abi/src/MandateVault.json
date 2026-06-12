@@ -51,6 +51,11 @@
             "name": "agent",
             "type": "address",
             "internalType": "address"
+          },
+          {
+            "name": "tripMode",
+            "type": "uint8",
+            "internalType": "enum MandateVault.TripMode"
           }
         ]
       },
@@ -300,6 +305,11 @@
             "name": "agent",
             "type": "address",
             "internalType": "address"
+          },
+          {
+            "name": "tripMode",
+            "type": "uint8",
+            "internalType": "enum MandateVault.TripMode"
           }
         ]
       }

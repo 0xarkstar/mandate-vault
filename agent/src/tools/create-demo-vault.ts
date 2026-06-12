@@ -18,14 +18,17 @@ import { loadToolConfig } from '../config.js'
 const ArgsSchema = z.object({
   factory: z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'factory must be a 20-byte address'),
   agent: z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'agent must be a 20-byte address'),
-  cooldown: z.coerce.number().int().min(1).max(86_400).default(60)
+  cooldown: z.coerce.number().int().min(1).max(86_400).default(60),
+  /** Drawdown-trip behavior: freeze (hold positions, default) or derisk. */
+  'trip-mode': z.enum(['freeze', 'derisk']).default('freeze')
 })
 
 /** Build the 3-asset custom mandate struct (matches Solidity Mandate). */
 export function buildCustomMandate(
   assets: [Address, Address, Address],
   agent: Address,
-  cooldown: number
+  cooldown: number,
+  tripMode: 'freeze' | 'derisk' = 'freeze'
 ) {
   return {
     assets,
@@ -36,7 +39,8 @@ export function buildCustomMandate(
     mgmtFeeBpsPerYear: 100,
     perfFeeBps: 1000,
     hurdleBpsPerYear: 450,
-    agent
+    agent,
+    tripMode: tripMode === 'freeze' ? 0 : 1
   } as const
 }
 
@@ -46,7 +50,8 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv): Promise<void
     options: {
       factory: { type: 'string' },
       agent: { type: 'string' },
-      cooldown: { type: 'string' }
+      cooldown: { type: 'string' },
+      'trip-mode': { type: 'string' }
     }
   })
   const args = ArgsSchema.parse(values)
@@ -64,7 +69,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv): Promise<void
     clients.publicClient.readContract({ ...base, functionName: 'mMNT' })
   ])) as [Address, Address, Address]
 
-  const mandate = buildCustomMandate([mUSD, mMETH, mMNT], args.agent as Address, args.cooldown)
+  const mandate = buildCustomMandate([mUSD, mMETH, mMNT], args.agent as Address, args.cooldown, args['trip-mode'])
 
   const txHash = await clients.walletClient.writeContract({
     address: factory,

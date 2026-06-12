@@ -19,6 +19,15 @@ import {MockERC20} from "./MockERC20.sol";
 contract MandateVault {
     // ---------------------------------------------------------------- types
 
+    /// @notice Drawdown-trip behavior. FREEZE (default) suspends the agent and
+    /// HOLDS positions — no forced dump into a crashing market. DERISK sells
+    /// every non-safe sleeve into the safe asset via the venue (RFQ-routed when
+    /// a quote is posted, oracle-mid fallback otherwise — never a market dump).
+    enum TripMode {
+        FREEZE,
+        DERISK
+    }
+
     struct Mandate {
         address[] assets;          // whitelist; assets[0] is the SAFE asset (mUSD)
         uint16[] minBps;           // per-asset allocation lower bound
@@ -29,6 +38,7 @@ contract MandateVault {
         uint16 perfFeeBps;         // performance fee on gains above hurdle-adjusted HWM
         uint16 hurdleBpsPerYear;   // baseline hurdle (USDY-like risk-free yield)
         address agent;             // only address allowed to call rebalance()
+        TripMode tripMode;         // drawdown-trip behavior (FREEZE default)
     }
 
     // ---------------------------------------------------------------- state
@@ -395,14 +405,19 @@ contract MandateVault {
 
     function _trip() internal {
         tripped = true;
-        // de-risk: sell every non-safe sleeve into the safe asset
-        address safe = _mandate.assets[0];
-        uint256 n = _mandate.assets.length;
-        for (uint256 i = 1; i < n; i++) {
-            address a = _mandate.assets[i];
-            uint256 bal = MockERC20(a).balanceOf(address(this));
-            if (bal > 0) venue.swap(a, safe, bal);
+        if (_mandate.tripMode == TripMode.DERISK) {
+            // DERISK: sell every non-safe sleeve into the safe asset via the
+            // venue (RFQ quote when posted, oracle-mid fallback — never a dump
+            // into a public pool).
+            address safe = _mandate.assets[0];
+            uint256 n = _mandate.assets.length;
+            for (uint256 i = 1; i < n; i++) {
+                address a = _mandate.assets[i];
+                uint256 bal = MockERC20(a).balanceOf(address(this));
+                if (bal > 0) venue.swap(a, safe, bal);
+            }
         }
+        // FREEZE: suspend the agent, HOLD positions — no forced selling.
         emit DrawdownTripped(sharePrice(), hwmSharePrice);
     }
 

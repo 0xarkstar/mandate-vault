@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../../contracts"
 mkdir -p ../packages/abi/src
-for c in MandateVault VaultFactory MockERC20 MockOracle MockVenue; do
+for c in MandateVault VaultFactory MockERC20 MockOracle MockVenue RFQVenue; do
   forge inspect "$c" abi --json > "../packages/abi/src/${c}.json"
   echo "wrote src/${c}.json"
 done

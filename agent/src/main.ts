@@ -1,9 +1,13 @@
 import { parseArgs } from 'node:util'
+import { realpathSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
 import { z } from 'zod'
-import { loadConfig } from './config.js'
+import { loadConfig, type AgentConfig } from './config.js'
 import { makeClients } from './chain.js'
 import { decideOnce } from './decide.js'
 import { runSim } from './sim.js'
+import { makeDemoMm } from './mm/demo-mm.js'
+import type { RfqConfig } from './execute/submit.js'
 
 /**
  * Agent CLI entrypoint.
@@ -50,6 +54,24 @@ function parseCli(argv: string[]): z.infer<typeof CliSchema> {
   return CliSchema.parse(values)
 }
 
+/**
+ * Build the RFQ execution config when the env provides a venue + MM keys.
+ * The two demo MMs are OURS (labeled): tight quotes +5bps better than oracle
+ * mid, wide quotes 40bps worse — the router demonstrably picks the better.
+ */
+export function buildRfqConfig(cfg: AgentConfig): RfqConfig | undefined {
+  if (!cfg.rfqVenueAddress || !cfg.mmKeyTight || !cfg.mmKeyWide) return undefined
+  const venue = cfg.rfqVenueAddress
+  return {
+    venue,
+    maxSlippageBps: cfg.rfqMaxSlippageBps,
+    mms: [
+      makeDemoMm({ name: 'demo-mm-tight', privateKey: cfg.mmKeyTight, edgeBps: 5, venue, chainId: cfg.chainId }),
+      makeDemoMm({ name: 'demo-mm-wide', privateKey: cfg.mmKeyWide, edgeBps: -40, venue, chainId: cfg.chainId })
+    ]
+  }
+}
+
 async function run(argv: string[], env: NodeJS.ProcessEnv): Promise<void> {
   const cli = parseCli(argv)
   const cfg = loadConfig(env, cli.vault)
@@ -57,6 +79,8 @@ async function run(argv: string[], env: NodeJS.ProcessEnv): Promise<void> {
   if (!cfg.oracleAddress) {
     throw new Error('ORACLE_ADDRESS env var is required (agent reads oracle prices)')
   }
+
+  const rfq = buildRfqConfig(cfg)
 
   if (cli.mode === 'sim') {
     await runSim({
@@ -69,7 +93,8 @@ async function run(argv: string[], env: NodeJS.ProcessEnv): Promise<void> {
       openRouterApiKey: cfg.openRouterApiKey,
       fundingSymbol: cfg.fundingSymbol,
       steps: cli.steps,
-      seed: cli.seed
+      seed: cli.seed,
+      rfq
     })
     return
   }
@@ -84,12 +109,18 @@ async function run(argv: string[], env: NodeJS.ProcessEnv): Promise<void> {
     chainId: cfg.chainId,
     fundingSymbol: cfg.fundingSymbol,
     violate: cli.violate,
-    forceTarget: parseForceTarget(cli['force-target'])
+    forceTarget: parseForceTarget(cli['force-target']),
+    rfq
   })
 }
 
-run(process.argv.slice(2), process.env).catch((err) => {
-  // eslint-disable-next-line no-console -- CLI user-facing output
-  console.error(`agent failed: ${err instanceof Error ? err.message : String(err)}`)
-  process.exit(1)
-})
+// Only execute when invoked as the CLI entrypoint — importing this module
+// (e.g. from tests) must not trigger a run.
+const entry = process.argv[1]
+if (entry && import.meta.url === pathToFileURL(realpathSync(entry)).href) {
+  run(process.argv.slice(2), process.env).catch((err) => {
+    // eslint-disable-next-line no-console -- CLI user-facing output
+    console.error(`agent failed: ${err instanceof Error ? err.message : String(err)}`)
+    process.exit(1)
+  })
+}
