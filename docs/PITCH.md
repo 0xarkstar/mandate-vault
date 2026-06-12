@@ -27,6 +27,20 @@ on execution quality, never alpha.
 
 ## Full description
 
+**What this is NOT (read first).** Not an LP, not an aggregator, not a fund.
+The deletion test: remove our RFQ venue and plug in any other execution venue
+— the product survives intact (execution is replaceable plumbing; on testnet
+we built our own because nothing existed to plug into). Remove the mandate
+cage, the replay verification, or the Arena — nothing is left. The product is
+the **delegation rail**: chain-enforced limits + provable behavior +
+benchmarked operators. Each piece exists somewhere (Enzyme has vaults,
+Hashflow has RFQ, nobody has the assembled rail). And the liquidity story is
+sequenced, not overclaimed: **v1 imports capital** (vault deposits are Mantle
+TVL; recurring uninformed rebalance flow is the bait that brings professional
+MMs — no pool lockup, no IL, per-trade pricing, benign flow); **v3 converts
+that capital into liquidity supply** (mandate prime brokerage: caged vault
+capital leased as MM inventory — with limits and receipts attached).
+
 **The problem.** Institutions and treasuries want on-chain RWA exposure
 (USDY-family stables, mETH), and automation is increasingly AI-shaped. But
 nobody sane gives an AI a private key: it might exceed limits, panic-sell,
