@@ -87,8 +87,9 @@ export function renderVerdict(result: VerifyResult, ctx: RenderContext): string 
     ...schemaRows,
     clampRow,
     null,
-    'note: bounds read from current mandate() — the owner may have updated them',
-    '      since this epoch (authoritative for this demo).',
+    'note: the clamp row is replayed against CURRENT mandate() bounds — the owner may',
+    '      have changed them since this epoch; a clamp mismatch with intact hashes is',
+    '      reported as INDETERMINATE (bounds drift), not tampering.',
     null,
     verdictLine(result)
   ]
@@ -102,7 +103,12 @@ export function renderVerdict(result: VerifyResult, ctx: RenderContext): string 
  * integrity is proven even though the content stays confidential.
  */
 function verdictLine(result: VerifyResult): string {
-  if (!result.verified) return 'VERDICT: TAMPERED ✗'
+  if (!result.verified) {
+    if (result.indeterminate) {
+      return 'VERDICT: ⚠ INDETERMINATE — payload integrity verified; recomputed clamp differs (mandate bounds may have changed since this epoch)'
+    }
+    return 'VERDICT: TAMPERED ✗'
+  }
   if (result.confidential && !result.contentVerified) {
     return 'VERDICT: 🔒 INTEGRITY VERIFIED ✓ (content confidential — supply --viewing-key to replay)'
   }

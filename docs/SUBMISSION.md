@@ -192,8 +192,8 @@ flow is uninformed, the flow MMs pay to fill.
 
 ## Build status (2026-06-13)
 
-ALL BUILT AND LIVE. 230+ tests green (contracts 41 forge · agent 84 ·
-web 73 · verifier 19 · clamp-core 13), tsc clean, E2E one-command
+ALL BUILT AND LIVE. 276 tests green (contracts 51 forge · agent 94 ·
+web 83 · verifier 24 · clamp-core 24), tsc clean, E2E one-command
 (`scripts/e2e-anvil.sh`).
 
 - **Mantle Sepolia (chainId 5003), all 10 contracts source-verified on

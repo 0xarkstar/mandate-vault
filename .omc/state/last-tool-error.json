@@ -1,7 +1,0 @@
-{
-  "tool_name": "Read",
-  "tool_input_preview": "{\"file_path\":\"/Users/arkstar/Projects/.playwright-mcp/vault-detail.png\"}",
-  "error": "File does not exist. Note: your current working directory is /Users/arkstar/Projects/mandate-vault.",
-  "timestamp": "2026-06-12T09:32:06.699Z",
-  "retry_count": 2
-}

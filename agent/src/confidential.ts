@@ -41,7 +41,11 @@ export interface ConfidentialPayloads {
 function compactPublicFields(fields: ConfidentialPublicFields): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   if (fields.llmFallback === true) out.llmFallback = true
-  if (typeof fields.playbookVersion === 'number') out.playbookVersion = fields.playbookVersion
+  // Match the plaintext snapshot rule (snapshot.ts): expose playbookVersion only
+  // when > 0, so v0/pre-learning omits the sibling on the confidential path too.
+  if (typeof fields.playbookVersion === 'number' && fields.playbookVersion > 0) {
+    out.playbookVersion = fields.playbookVersion
+  }
   return out
 }
 

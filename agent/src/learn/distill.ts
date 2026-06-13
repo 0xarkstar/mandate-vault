@@ -53,13 +53,19 @@ export function distillDecisions(records: DecisionRecord[]): Record<string, Regi
     }
     const fillSum = prev.avgImprovementBps * prev.fills + r.fillImprovementsBps.reduce((a, b) => a + b, 0)
     const fills = prev.fills + r.fillImprovementsBps.length
+    // Seed the running worst from the prior accumulated minimum, NOT 0: a 0 seed
+    // poisons Math.min for an all-positive regime (every fill +4 → 0, not +4).
+    // prevWorst is +Infinity until the regime has any fill, then collapses to 0
+    // only when there are genuinely no fills.
+    const prevWorst = prev.fills === 0 ? Number.POSITIVE_INFINITY : prev.worstImprovementBps
+    const worst = Math.min(prevWorst, ...r.fillImprovementsBps)
     out[r.regime] = {
       decisions: prev.decisions + 1,
       cageHits: prev.cageHits + (r.cageHit ? 1 : 0),
       fallbacks: prev.fallbacks + (r.llmFallback ? 1 : 0),
       fills,
       avgImprovementBps: fills === 0 ? 0 : Math.round((fillSum / fills) * 100) / 100,
-      worstImprovementBps: Math.min(prev.worstImprovementBps, ...r.fillImprovementsBps)
+      worstImprovementBps: fills === 0 ? 0 : worst
     }
   }
   return out

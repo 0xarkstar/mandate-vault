@@ -6,6 +6,15 @@ import {
   type DecisionDataEvent,
   type DecisionLoggedEvent
 } from '../src/verify.js'
+import { renderVerdict, type RenderContext } from '../src/render.js'
+
+const ctx: RenderContext = {
+  vault: '0x1111111111111111111111111111111111111111',
+  rpcUrl: 'http://localhost:8545',
+  blockNumber: 1n,
+  transactionHash: null,
+  tamper: null
+}
 
 // Balanced template bounds: mUSD 30-100%, mMETH 0-70%
 const bounds = { minBps: [3000, 0], maxBps: [10_000, 7000] }
@@ -142,6 +151,48 @@ describe('doVerify — clamp replay', () => {
   })
 })
 
+describe('doVerify — bounds drift (indeterminate)', () => {
+  it('integrity ok + schemas parse, clamp differs vs CURRENT bounds → INDETERMINATE not TAMPERED', async () => {
+    // On-chain allocation was clamped at the original epoch's bounds...
+    const { decisionData, decisionLogged } = fixture()
+    expect(decisionLogged.clampedAllocBps).toEqual([3000, 7000])
+    // ...but the owner has since called setMandateBounds → verify with DIFFERENT bounds.
+    const currentBounds = { minBps: [3000, 0], maxBps: [10_000, 5000] }
+    const r = await doVerify(decisionData, decisionLogged, currentBounds)
+
+    expect(r.hashChecks.every((h) => h.ok)).toBe(true) // integrity intact
+    expect(r.integrityOk).toBe(true)
+    expect(r.snapshotParse.ok).toBe(true)
+    expect(r.proposalParse.ok).toBe(true)
+    expect(r.clampReplay.performed).toBe(true)
+    expect(r.clampReplay.ok).toBe(false) // recomputed [3000,5000] ≠ on-chain [3000,7000]
+    expect(r.indeterminate).toBe(true)
+    expect(r.verified).toBe(false)
+
+    const verdictRow = renderVerdict(r, ctx)
+      .split('\n')
+      .find((l) => l.includes('VERDICT:'))
+    expect(verdictRow).toContain('INDETERMINATE')
+    expect(verdictRow).not.toContain('TAMPERED')
+  })
+
+  it('genuine snapshot tamper (hash break) → TAMPERED, not indeterminate', async () => {
+    const { decisionData, decisionLogged } = fixture()
+    const tamper = tamperString(decisionData.snapshotJson)
+    const r = await doVerify({ ...decisionData, snapshotJson: tamper.tampered }, decisionLogged, bounds)
+
+    expect(r.integrityOk).toBe(false)
+    expect(r.indeterminate).toBe(false)
+    expect(r.verified).toBe(false)
+
+    const verdictRow = renderVerdict(r, ctx)
+      .split('\n')
+      .find((l) => l.includes('VERDICT:'))
+    expect(verdictRow).toContain('TAMPERED')
+    expect(verdictRow).not.toContain('INDETERMINATE')
+  })
+})
+
 describe('doVerify — schema rejection', () => {
   it('rejects a proposal that fails ProposalSchema and skips the clamp replay', async () => {
     const rawProposalJson = canonicalJson({
@@ -229,6 +280,7 @@ describe('doVerify — confidential payloads', () => {
     expect(r.verified).toBe(true)
     expect(r.confidential).toBe(true)
     expect(r.contentVerified).toBe(true)
+    expect(r.indeterminate).toBe(false)
     expect(r.hashChecks.every((h) => h.ok)).toBe(true)
     expect(r.snapshotParse.ok).toBe(true)
     expect(r.proposalParse.ok).toBe(true)
@@ -243,6 +295,8 @@ describe('doVerify — confidential payloads', () => {
     expect(r.verified).toBe(true) // integrity (hashes) ok
     expect(r.confidential).toBe(true)
     expect(r.contentVerified).toBe(false)
+    expect(r.integrityOk).toBe(true)
+    expect(r.indeterminate).toBe(false)
     expect(r.hashChecks.every((h) => h.ok)).toBe(true)
     expect(r.snapshotParse.locked).toBe(true)
     expect(r.proposalParse.locked).toBe(true)
@@ -256,6 +310,7 @@ describe('doVerify — confidential payloads', () => {
     expect(r.verified).toBe(false)
     expect(r.confidential).toBe(true)
     expect(r.contentVerified).toBe(false)
+    expect(r.indeterminate).toBe(false) // confidential is never indeterminate
     expect(r.hashChecks.every((h) => h.ok)).toBe(true) // integrity still intact
     expect(r.snapshotParse.error).toContain('viewing key incorrect')
   })

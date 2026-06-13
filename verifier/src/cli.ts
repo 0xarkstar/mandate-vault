@@ -32,7 +32,7 @@ options:
   --from-block   start block for the log scan (default: earliest)
   -h, --help     show this help
 
-exit codes: 0 = VERIFIED · 1 = TAMPERED / verification failed · 2 = usage or RPC error`
+exit codes: 0 = VERIFIED · 1 = TAMPERED / verification failed · 2 = usage or RPC error · 3 = INDETERMINATE (integrity ok, clamp differs — bounds may have changed)`
 
 // ----------------------------------------------------------------- validation
 
@@ -150,7 +150,9 @@ async function main(argv: readonly string[]): Promise<number> {
       tamper
     })}\n`
   )
-  return result.verified ? 0 : 1
+  if (result.verified) return 0
+  if (result.indeterminate) return 3
+  return 1
 }
 
 main(process.argv.slice(2))

@@ -57,6 +57,29 @@ describe('buildConfidentialPayloads', () => {
     expect(proposal?.playbookVersion).toBeUndefined()
   })
 
+  it('omits playbookVersion 0 but exposes playbookVersion 2 (matches plaintext v0 rule)', async () => {
+    const v0 = await buildConfidentialPayloads({
+      snapshotJson,
+      rawProposalJson,
+      rationale,
+      viewingKey: KEY,
+      publicFields: { playbookVersion: 0 }
+    })
+    const parsedV0 = parseEnvelope(v0.snapshotJson) as Record<string, unknown>
+    expect('playbookVersion' in parsedV0).toBe(false)
+    // the encrypted inner content (canonical snapshot string) is unaffected
+    expect(await decryptEnvelope(parseEnvelope(v0.snapshotJson)!, KEY)).toBe(snapshotJson)
+
+    const v2 = await buildConfidentialPayloads({
+      snapshotJson,
+      rawProposalJson,
+      rationale,
+      viewingKey: KEY,
+      publicFields: { playbookVersion: 2 }
+    })
+    expect(parseEnvelope(v2.snapshotJson)?.playbookVersion).toBe(2)
+  })
+
   it('omits absent public fields (no llmFallback / playbookVersion keys)', async () => {
     const published = await buildConfidentialPayloads({
       snapshotJson,

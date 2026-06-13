@@ -32,6 +32,26 @@ describe('distillDecisions', () => {
     expect(stats.RISK_OFF!.fallbacks).toBe(1)
   })
 
+  it('reports the true worst for an all-positive regime (no 0 seed)', () => {
+    const stats = distillDecisions([
+      record({ regime: 'RISK_ON', fillImprovementsBps: [4, 4] }),
+      record({ regime: 'RISK_ON', epoch: 2, fillImprovementsBps: [4] })
+    ])
+    expect(stats.RISK_ON!.fills).toBe(3)
+    expect(stats.RISK_ON!.worstImprovementBps).toBe(4)
+  })
+
+  it('reports the true worst for a mixed regime', () => {
+    const stats = distillDecisions([record({ regime: 'RISK_ON', fillImprovementsBps: [5, -2] })])
+    expect(stats.RISK_ON!.worstImprovementBps).toBe(-2)
+  })
+
+  it('reports worst 0 when a regime has no fills', () => {
+    const stats = distillDecisions([record({ regime: 'RISK_ON', fillImprovementsBps: [] })])
+    expect(stats.RISK_ON!.fills).toBe(0)
+    expect(stats.RISK_ON!.worstImprovementBps).toBe(0)
+  })
+
   it('handles an empty history', () => {
     expect(distillDecisions([])).toEqual({})
   })

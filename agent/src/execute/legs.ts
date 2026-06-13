@@ -2,11 +2,13 @@ import type { Address } from 'viem'
 import type { Leg } from './types.js'
 
 /**
- * Replicates MandateVault._executeAllocation's integer math off-chain so the
- * agent knows the EXACT swap legs the vault will execute for a target — and can
- * therefore request/post RFQ quotes sized to those legs. Pure bigint
- * arithmetic on the same on-chain inputs (balances, oracle prices, totalValue);
- * NO LLM, no floating point.
+ * Mirrors MandateVault._executeAllocation off-chain so the agent can size RFQ
+ * quotes to the legs the vault will execute. Pass 1 (sell overweight sleeves)
+ * matches the contract's bigint math exactly; pass 2 (buy underweight) caps
+ * spend at the safe balance projected with MID fills — actual RFQ fills are
+ * ≥ mid (or the slippage gate freezes), so the on-chain cap is never tighter
+ * than projected here. Pure bigint arithmetic on the same on-chain inputs
+ * (balances, oracle prices, totalValue); NO LLM, no floating point.
  */
 
 const WAD = 10n ** 18n

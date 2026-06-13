@@ -27,6 +27,7 @@ it pays a small known spread instead of collecting fees for being picked off.
 > Product definition: [docs/SUBMISSION.md](docs/SUBMISSION.md) ·
 > contracts: [docs/DESIGN.md](docs/DESIGN.md) ·
 > agent harness: [docs/HARNESS.md](docs/HARNESS.md) ·
+> **security model + self-audit register: [docs/SECURITY.md](docs/SECURITY.md)** ·
 > **every hard objection, answered: [docs/STRESS-TEST-QA.md](docs/STRESS-TEST-QA.md)** ·
 > submission blocks: [docs/PITCH.md](docs/PITCH.md)
 
@@ -83,11 +84,11 @@ depositor free to exit to the safe asset.
 ## Monorepo
 
 ```
-contracts/   Foundry — MandateVault, VaultFactory, RFQVenue, mocks (41 tests)
+contracts/   Foundry — MandateVault, VaultFactory, RFQVenue, mocks (51 tests)
 agent/       TS daemon — deliberate/ (propose·review·gate·onboard),
              execute/ (legs·rfq·route·submit), learn/ (distill·PolicyIndex),
-             mm/ demo market makers, confidential payloads, tools/ (90 tests)
-verifier/    third-party replay verification CLI, viewing-key aware (22 tests)
+             mm/ demo market makers, confidential payloads, tools/ (94 tests)
+verifier/    third-party replay verification CLI, viewing-key aware (24 tests)
 web/         Vite + React dashboard — vaults, decision timeline, cage
              diagram, TCA, Agent Arena (in-browser verification) (83 tests)
 packages/    clamp-core (shared cage + confidential envelopes, 24 tests) · abi
@@ -139,8 +140,14 @@ PolicyIndex v1 → scene 3 crash + FREEZE trip → scene 4 third-party replay
   labeled `demo-mm-tight` / `demo-mm-wide`). They sign real EIP-712 quotes and
   settle from their own inventory through the same contract path a real MM
   would use — but they are demo liquidity, not independent counterparties.
-- Contracts are **reviewed and tested, NOT audited**. Mock oracle and faucet
-  tokens are testnet scaffolding.
+- Contracts are **reviewed and tested, NOT audited**. We ran an 11-dimension
+  multi-agent self-audit with adversarial verification and **publish every
+  finding** (severity + disposition + mainnet remedy) in
+  [docs/SECURITY.md](docs/SECURITY.md) — including a disclosed HIGH
+  griefing surface on `postQuote`. Core money invariants (withdraw never
+  blocked, no owner drain, agent rebalance-only, bounds re-check, no-LLM
+  execution) were verified to hold. Mock oracle and faucet tokens are testnet
+  scaffolding.
 - Mainnet prerequisites (explicitly out of scope here): security audit,
   multisig owner, decentralized oracle, real MM integrations
   (Hashflow-style), ERC-4626 virtual-offset share accounting.
@@ -198,5 +205,5 @@ replay-verifiable AI decision**.
 
 ## Tests
 
-`pnpm -r test` (TS: clamp-core 24 · verifier 22 · web 83 · agent 90) and
-`cd contracts && forge test` (41) — **260 tests**, all green at HEAD.
+`pnpm -r test` (TS: clamp-core 24 · verifier 24 · web 83 · agent 94) and
+`cd contracts && forge test` (51) — **276 tests**, all green at HEAD.

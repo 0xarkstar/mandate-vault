@@ -192,6 +192,99 @@ contract RFQVenueTest is Test {
         venue.postQuote(q, sig);
     }
 
+    /// EIP-2 low-s guard (RFQVenue.sol:~186): a signature whose s is in the
+    /// upper half of the curve order is malleable and must be rejected, even
+    /// though it recovers to the same signer. We flip a valid low-s signature
+    /// to its high-s complement (s' = n - s, v toggled 27<->28).
+    function test_PostQuoteRevert_HighS() public {
+        RFQVenue.Quote memory q = _quote(1650e18, 1.001e18, 1);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mmKey, this.hashQuoteExternal(q));
+
+        // secp256k1 group order n
+        uint256 n = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141;
+        bytes32 highS = bytes32(n - uint256(s));
+        uint8 flippedV = v == 27 ? 28 : 27;
+
+        bytes memory badSig = abi.encodePacked(r, highS, flippedV);
+        vm.expectRevert(RFQVenue.BadSignature.selector);
+        venue.postQuote(q, badSig);
+    }
+
+    /// Fallback path with no posted quote and reserves below the requested
+    /// out-amount must revert InsufficientReserves, not silently underfill.
+    function test_SwapFallbackInsufficientReserves() public {
+        // fresh venue with NO assetOut (mMETH) reserves
+        RFQVenue bare = new RFQVenue(IPriceOracle(address(oracle)));
+
+        vm.startPrank(taker);
+        mUSD.approve(address(bare), type(uint256).max);
+        vm.stopPrank();
+
+        // 1650 mUSD -> 1 mMETH at mid, but bare venue holds 0 mMETH
+        vm.prank(taker);
+        vm.expectRevert(RFQVenue.InsufficientReserves.selector);
+        bare.swap(address(mUSD), address(mMETH), 1650e18);
+    }
+
+    /// _recover rejects any signature whose length != 65 before ecrecover.
+    function test_FillSignedQuoteRevert_BadSigLength() public {
+        RFQVenue.Quote memory q = _quote(1650e18, 1.001e18, 1);
+        bytes memory shortSig = hex"deadbeef"; // 4 bytes, not 65
+        vm.prank(taker);
+        vm.expectRevert(RFQVenue.BadSignature.selector);
+        venue.fillSignedQuote(q, shortSig);
+    }
+
+    /// KNOWN LIMITATION (audit RFQ-1, disclosed in docs/SECURITY.md): postQuote
+    /// is permissionless and the active-quote slot is keyed per-pair, so the
+    /// last writer before swap() wins. Documented as a mainnet hardening item
+    /// (access-control / pass-quote-through-calldata).
+    /// This test DOCUMENTS the known behavior — it is a characterization test,
+    /// not a vuln to fix here. (Repo disclosure: docs/STRESS-TEST-QA.md notes the
+    /// permissionless door; docs/SECURITY.md is the planned mainnet writeup.)
+    function test_PostQuoteOverwrite_KnownGriefing() public {
+        // MM-A posts the first quote for mUSD->mMETH
+        RFQVenue.Quote memory qA = _quote(1650e18, 1.001e18, 1);
+        venue.postQuote(qA, _sign(qA, mmKey));
+        assertEq(venue.activeQuote(address(mUSD), address(mMETH)).amountOut, 1.001e18);
+
+        // A second validly-signed quote (different MM) for the SAME pair overwrites it
+        RFQVenue.Quote memory qB = RFQVenue.Quote({
+            assetIn: address(mUSD),
+            assetOut: address(mMETH),
+            amountIn: 1650e18,
+            amountOut: 1.0005e18, // a *worse* price than A's — overwrite still succeeds
+            expiry: block.timestamp + 60,
+            mm: mm2,
+            nonce: 99
+        });
+        venue.postQuote(qB, _sign(qB, mm2Key));
+
+        // last writer wins: the active quote is now B's (mm2, 1.0005), not A's
+        RFQVenue.Quote memory active = venue.activeQuote(address(mUSD), address(mMETH));
+        assertEq(active.mm, mm2);
+        assertEq(active.amountOut, 1.0005e18);
+    }
+
+    /// Probe assetIn == assetOut. The contract has no explicit guard, so this
+    /// pins the *actual* behavior: it routes to the fallback (no active quote
+    /// for the self-pair), computes amountOut = amountIn at price/price = 1,
+    /// then transfers in then out — a net no-op of the same token. Pinned so any
+    /// future change to this path is caught.
+    function test_SwapAssetInEqualsAssetOut() public {
+        uint256 venueBalBefore = mUSD.balanceOf(address(venue));
+        uint256 takerBalBefore = mUSD.balanceOf(taker);
+
+        vm.prank(taker);
+        uint256 out = venue.swap(address(mUSD), address(mUSD), 1650e18);
+
+        // mid price of an asset against itself = 1 → out == in
+        assertEq(out, 1650e18);
+        // transferFrom(taker, venue, in) then transfer(venue, taker, out) net to zero
+        assertEq(mUSD.balanceOf(address(venue)), venueBalBefore);
+        assertEq(mUSD.balanceOf(taker), takerBalBefore);
+    }
+
     // ------------------------------------------------------ fillSignedQuote
 
     function test_FillSignedQuoteDirect() public {

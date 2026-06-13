@@ -12,8 +12,8 @@
 - **THE §5 BUILD CYCLE IS DONE.** All six changes (#1 RFQ engine, #2 FREEZE
   trip, #3 deliberation split, #4 learning slice, #5 Agent Arena, #6 web
   upgrades) are built, tested, rehearsed E2E on local anvil, and committed.
-- **230 tests green**: contracts 41 (forge) + agent 84 + web 73 + verifier 19 +
-  clamp-core 13. tsc clean in every package; vite build clean.
+- **276 tests green**: contracts 51 (forge) + agent 94 + web 83 + verifier 24 +
+  clamp-core 24. tsc clean in every package; vite build clean.
 - **Full E2E rehearsal is now ONE COMMAND**: `bash scripts/e2e-anvil.sh`
   (fresh burner keys per run, no user input, ~4 min). Verified twice this
   session; second run includes the scene-order fix (violation demo surfaces
@@ -47,7 +47,7 @@ enforcement layers). ALL OF THIS IS NOW IMPLEMENTED — see §4.
 
 ## 4. What is BUILT (everything below is tested + committed)
 
-### contracts/ (Foundry, Solidity 0.8.24) — 41 tests
+### contracts/ (Foundry, Solidity 0.8.24) — 51 tests
 - `MandateVault.sol` — as before, PLUS `Mandate.tripMode` (enum
   `TripMode {FREEZE, DERISK}`; FREEZE = suspend agent + HOLD positions,
   DERISK = sell sleeves to safe via venue). Templates default FREEZE.
@@ -64,7 +64,7 @@ enforcement layers). ALL OF THIS IS NOW IMPLEMENTED — see §4.
   tests only). After ANY contract change: `bash packages/abi/gen-abi.sh`
   (RFQVenue included; `rfqVenueAbi` exported from packages/abi).
 
-### agent/ — 84 tests
+### agent/ — 94 tests
 - `deliberate/` — `propose.ts` (proposer home; OpenRouter plumbing shared in
   `llm.ts`), `review.ts` (**different model** adversarial verdict
   `{verdict: approved|hold, reason}`; deterministic arithmetic verdict as last
@@ -73,7 +73,8 @@ enforcement layers). ALL OF THIS IS NOW IMPLEMENTED — see §4.
   mandate draft + ambiguity score + questions; multi-round loop = roadmap),
   `types.ts`.
 - `execute/` (**NO LLM**) — `legs.ts` (replicates `_executeAllocation` integer
-  math exactly on on-chain balances/prices/totalValue → exact swap legs),
+  math: pass-1 sells exact, pass-2 buy-cap uses a mid-fill projection (fills
+  are ≥mid or the gate freezes, so the cap is never tighter on-chain),
   `rfq.ts` (`MmClient` interface, collectQuotes with zod + off-chain EIP-712
   signature verification), `route.ts` (`selectBest` cross-multiplied rate
   compare + `slippageGate` → fill or FREEZE, never dump), `submit.ts`
@@ -94,7 +95,7 @@ enforcement layers). ALL OF THIS IS NOW IMPLEMENTED — see §4.
   untouched)** → clamp → **RFQ plan/gate/post** → rebalance → parse TCA fills.
   `--force-target` bypasses review (demo scaffolding) but never clamp/chain.
 
-### web/ — 73 tests, builds clean
+### web/ — 83 tests, builds clean
 - **`#/arena`** leaderboard (execution-quality score = 50·fill-improvement +
   30·cage-discipline + 20·autonomy; `lib/arena-score.ts`; model attribution
   labeled roadmap), Header nav.
@@ -104,7 +105,7 @@ enforcement layers). ALL OF THIS IS NOW IMPLEMENTED — see §4.
   tripMode row in mandate card, Playbook card, separation-of-powers card,
   runway card (safe sleeve ÷ burn input), template sublabels.
 
-### verifier/ + clamp-core — unchanged behavior (19 + 13 tests);
+### verifier/ + clamp-core — (24 + 24 tests);
   `SnapshotSchema` gained optional `playbookVersion`.
 
 ### scripts/
@@ -164,8 +165,8 @@ RFQ legs filled +4bps TCA). Demo viewing key (public BY DESIGN, in README):
 Verifier `--viewing-key` → 🔒 VERIFIED; without → 🔒 INTEGRITY VERIFIED.
 Privacy-lite shipped 2026-06-13: clamp-core `confidential.ts` (WebCrypto
 AES-GCM envelopes), agent `VIEWING_KEY` env, verifier/web selective
-disclosure. Tests now **260** (clamp-core 24 · verifier 22 · web 83 ·
-agent 90 · forge 41). Arena round 2 ran: template vaults at 2 epochs each
+disclosure. Tests now **276** (clamp-core 24 · verifier 24 · web 83 ·
+agent 94 · forge 51). Arena round 2 ran: template vaults at 2 epochs each
 (gpt-oss 85/15, gemma 80/20/0 real proposals; nemotron 429→honest fallback
 twice). Repo public: https://github.com/0xarkstar/mandate-vault. Pitch
 blocks: docs/PITCH.md. Video script: docs/VIDEO-SCRIPT.md.

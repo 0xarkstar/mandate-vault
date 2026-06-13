@@ -71,6 +71,13 @@ export interface VerifyResult {
   readonly regime: string | null
   readonly clampReplay: ClampReplay
   readonly verified: boolean
+  /** True when all three keccak hash checks pass (payload integrity). Independent
+   * of bounds — sound even if the owner changed mandate() after this epoch. */
+  readonly integrityOk: boolean
+  /** True exactly when the plaintext payload integrity-checks and schema-parses but
+   * the recomputed clamp differs (the only divergence). Almost certainly a
+   * post-epoch mandate-bounds change, NOT tampering — render reports INDETERMINATE. */
+  readonly indeterminate: boolean
   /** True when the on-chain payloads are encrypted envelopes (privacy-lite). */
   readonly confidential: boolean
   /** True when the inner content (schema + clamp) was actually re-verified.
@@ -212,6 +219,8 @@ export async function doVerify(
         locked: true
       },
       verified: hashesOk,
+      integrityOk: hashesOk,
+      indeterminate: false,
       confidential: true,
       contentVerified: false
     }
@@ -234,6 +243,8 @@ export async function doVerify(
         reason: 'viewing key incorrect or data tampered'
       },
       verified: false,
+      integrityOk: hashChecks.every((h) => h.ok),
+      indeterminate: false,
       confidential: true,
       contentVerified: false
     }
@@ -256,7 +267,19 @@ export async function doVerify(
       : replayClamp(proposal.data.targetAllocBps, bounds, onchainBps)
 
   const contentOk = snapshot.check.ok && proposal.check.ok && clampReplay.ok
-  const verified = hashChecks.every((h) => h.ok) && contentOk
+  const integrityOk = hashChecks.every((h) => h.ok)
+  const verified = integrityOk && contentOk
+
+  // Bounds-drift vs tamper: hashes intact and both schemas parsed, with the clamp
+  // as the SOLE divergence → almost certainly a post-epoch setMandateBounds, not a
+  // forged decision. Confidential payloads are never indeterminate.
+  const indeterminate =
+    !confidential &&
+    integrityOk &&
+    snapshot.check.ok &&
+    proposal.check.ok &&
+    clampReplay.performed &&
+    !clampReplay.ok
 
   return {
     epoch: decisionData.epoch.toString(),
@@ -266,6 +289,8 @@ export async function doVerify(
     regime: proposal.data?.regime ?? null,
     clampReplay,
     verified,
+    integrityOk,
+    indeterminate,
     confidential,
     contentVerified: contentOk
   }

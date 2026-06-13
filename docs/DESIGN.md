@@ -1,174 +1,168 @@
 # MandateVault — Design Document
 
-> Authoritative spec: `~/Projects/.omc/specs/deep-interview-mandate-vault.md` (AC-1..AC-15).
-> This file locks the technical design. Target: Mantle Turing Test Hackathon 2026, AI x RWA track.
-> Deadline: 2026-06-16 00:59 KST.
+> Technical design of the contracts + system, **as built and deployed**.
+> Companion docs: agent harness → [HARNESS.md](HARNESS.md); product/positioning
+> → [SUBMISSION.md](SUBMISSION.md); security model + audit register →
+> [SECURITY.md](SECURITY.md); objection register → [STRESS-TEST-QA.md](STRESS-TEST-QA.md).
+> Target: Mantle Turing Test Hackathon 2026, AI × RWA track. Updated 2026-06-13.
 
-## Verified Facts (2026-06-11)
+## Verified facts
 
-| Fact | Value | Verified via |
-|---|---|---|
-| Mantle Sepolia chainId | **5003** (0x138b) | `eth_chainId` on rpc.sepolia.mantle.xyz |
-| RPC | `https://rpc.sepolia.mantle.xyz` | live, block ~39.8M |
-| Explorer | `https://sepolia.mantlescan.xyz` (Etherscan family) | HTTP 200; verify via Etherscan V2 API (free key, chainid=5003) |
-| Explorer fallback | explorer.sepolia.mantle.xyz (Blockscout) | 503 at check time — unreliable |
-| OpenRouter free models | `openai/gpt-oss-120b:free` → `qwen/qwen3-next-80b-a3b-instruct:free` → `meta-llama/llama-3.3-70b-instruct:free` (fallback chain) | /api/v1/models |
-| Funding feed PRIMARY (no key) | Bybit v5: `/v5/market/funding/history?category=linear&symbol=ETHUSDT` + `/v5/market/tickers` | live JSON (2026-06-12); Bybit = Mantle ecosystem exchange (co-host) |
-| Funding feed FALLBACK (no key) | Binance: `/fapi/v1/fundingRate` + `/fapi/v1/premiumIndex` | live JSON; failover so a demo never stalls on one venue |
+| Fact | Value |
+|---|---|
+| Mantle Sepolia chainId | **5003** (0x138b), rpc `https://rpc.sepolia.mantle.xyz` |
+| Explorer | `https://sepolia.mantlescan.xyz` (Etherscan-family; verify via V2 API, chainid=5003) |
+| RPC quirk | `eth_getLogs` rejects >10k-block ranges → verifier chunks; public RPC rate-limits bursts → batch + multicall3 |
+| LLM (truly-free, $0) chain | `openai/gpt-oss-120b:free` → `nvidia/nemotron-3-super-120b-a12b:free` → `google/gemma-4-31b-it:free` (live-verified 2026-06-13; qwen3-next/llama-3.3 free tiers were upstream-429ing) |
+| Funding feed | **Bybit v5** primary (`/v5/market/funding/history` + `/v5/market/tickers`, keyless; Bybit = Mantle ecosystem exchange), Binance failover so a demo never stalls |
 
-## Architecture
+## Architecture — three engines, three clocks
+
+The execution path **never touches an LLM**. See HARNESS.md for the full agent
+design; the system view:
 
 ```
-                         ┌─────────────────────────────────────────┐
-                         │              Mantle Sepolia             │
-                         │                                         │
-  Owner ──set mandate──▶ │  VaultFactory ──creates──▶ MandateVault │
-  Depositor ──deposit──▶ │   (templates)              ├ mandate    │
-                         │                            ├ sleeves    │
-  Agent ──rebalance────▶ │  on-chain bounds RE-CHECK  ├ fees       │
-   │                     │  DecisionLogged + Data evt ├ trip/kill  │
-   │                     │  MockERC20 mUSD/mMETH/mMNT │            │
-   │                     │  MockOracle (demo setter)  │            │
-   │                     │  MockVenue (oracle-price swap)          │
-   │                     └─────────────────▲───────────────────────┘
-   │                                       │ events (snapshot JSON on-chain)
-   │  inputs: Binance funding (real REST), │
-   │  oracle prices, vault state           │
-   ▼                                       │
- LLM (OpenRouter free, structured JSON) ───┤
-   │ rawProposal {regime, targetBps[],     │
-   │              rationale}               │
-   ▼                                       │
- clamp-core (pure TS, SHARED) ── verifier CLI / web Verify button
-   clamped = min(max(target, minBps), maxBps), renormalize, Σ=10000
+                         ┌──────────────────────── Mantle Sepolia ───────────────────────┐
+  Owner ──set mandate──▶ │  VaultFactory ──creates──▶ MandateVault (per-vault)            │
+  Depositor ──deposit──▶ │                            ├ mandate (assets, bounds, tripMode)│
+  Anyone ──tripCheck()─▶ │  on-chain bounds RE-CHECK  ├ shares / fees / HWM               │
+                         │  DecisionLogged + Data evt ├ rebalance() agent-only            │
+  Agent ──rebalance────▶ │  QuoteFilled (TCA) evt     │                                   │
+   ▲  (HOW, no LLM)      │  RFQVenue ◀── signed EIP-712 quotes ── MM bots                 │
+   │                     │  MockOracle (demo setter)  ·  Mock mUSD/mMETH/mMNT             │
+   │                     └───────────────────────────────────────▲───────────────────────┘
+   │  DELIBERATION (LLM): propose (model A) → review (model B)    │ events (snapshot JSON,
+   │     → deterministic gate → ExecutionIntent                   │ or AES-GCM envelope)
+   │  EXECUTION (no LLM): legs → RFQ collect/route/gate → submit  │
+   │  LEARNING (background): on-chain log → PolicyIndex vN ───────┘
+   ▼
+ clamp-core (pure TS, SHARED by agent · verifier · web)
 ```
 
-**Core claim**: the LLM is free; the cage is verifiable. Three enforcement layers:
-1. Off-chain clamp (clamp-core) — LLM proposal clamped to mandate before tx.
-2. On-chain re-check — `rebalance()` reverts on any bounds violation (even a buggy/hostile harness cannot escape).
-3. Automatic trip — drawdown breach forces de-risk to safe asset + agent suspension, no human in the loop.
+**Core claim:** the LLM is free to propose; the cage is verifiable. Enforcement
+layers (full threat model in SECURITY.md): off-chain clamp → reviewer veto →
+on-chain bounds re-check → autonomous breach freeze → no LLM on the execution
+path. Every decision emits its full input snapshot + raw proposal + rationale on
+chain (plaintext, or an encrypted envelope under privacy-lite); anyone recomputes
+the keccak hashes + replays the clamp from event data → ✓ / ✗.
 
-Replay verification: full input snapshot + raw proposal + rationale are emitted **on-chain** (testnet gas ≈ free; mainnet → calldata/IPFS, documented as roadmap). Anyone recomputes hashes + clamp from event data → ✓/✗.
-
-## Repo Layout (pnpm workspace + Foundry)
+## Repo layout (pnpm workspace + Foundry)
 
 ```
 mandate-vault/
-├── contracts/            # Foundry
-│   ├── src/{MandateVault,VaultFactory,MockERC20,MockOracle,MockVenue}.sol
-│   ├── src/interfaces/IAgentIdentity.sol     # ERC-8004 adapter stub
-│   ├── test/*.t.sol
-│   └── script/Deploy.s.sol
-├── packages/clamp-core/   # pure TS: schema, clamp, canonical JSON, keccak hashing
-├── agent/                 # feeds → LLM → clamp → tx; modes: once|sim|loop
-├── verifier/              # CLI: fetch events → recompute → ✓/✗ (+ --tamper demo)
-├── web/                   # Vite+React+wagmi/viem; CF Pages
-├── scripts/               # demo scenes 1-3, timeline populate, faucet mint
-└── docs/                  # DESIGN.md, PITCH.md, VIDEO_SCRIPT.md
+├── contracts/   Foundry — MandateVault, VaultFactory, RFQVenue, Mock{ERC20,Oracle,Venue}
+│                interfaces/{IPriceOracle,ISwapVenue,IAgentIdentity}; script/Deploy.s.sol
+├── packages/clamp-core/  pure TS — schema, clamp, canonical JSON, keccak, confidential envelopes
+├── agent/       deliberate/ · execute/ (no LLM) · learn/ · mm/ · confidential.ts · tools/
+├── verifier/    CLI: fetch events → recompute hashes + replay clamp → ✓/✗/INDETERMINATE; viewing-key aware
+├── web/         Vite + React 19 + viem; CF Pages — vaults, cage diagram, TCA timeline, Arena, in-browser Verify
+├── scripts/     e2e-anvil.sh + demo scenes 1-4
+└── docs/        DESIGN · HARNESS · SUBMISSION · SECURITY · STRESS-TEST-QA · PITCH · VIDEO-SCRIPT
 ```
 
-## Contract Specs
+## Contract specs (as deployed)
 
-### MandateVault (per-vault, deployed by factory)
+### MandateVault
 
 ```solidity
+enum TripMode { FREEZE, DERISK }          // FREEZE = default
 struct Mandate {
-    address[] assets;        // whitelist; assets[0] = SAFE asset (mUSD)
-    uint16[]  minBps;        // per-asset lower bound
-    uint16[]  maxBps;        // per-asset upper bound
-    uint16    maxDrawdownBps;        // vs share-price high-water mark
-    uint32    rebalanceCooldown;     // seconds
-    uint16    mgmtFeeBpsPerYear;     // accrued as share dilution on rebalance
-    uint16    perfFeeBps;            // on gain above HWM * hurdle accrual
-    uint16    hurdleBpsPerYear;      // USDY-baseline hurdle, pro-rated
-    address   agent;                 // only caller of rebalance()
+    address[] assets;        // whitelist; assets[0] = SAFE asset (mUSD/USDY)
+    uint16[]  minBps; uint16[] maxBps;     // per-asset bounds
+    uint16    maxDrawdownBps;              // vs share-price high-water mark
+    uint32    rebalanceCooldown;           // seconds
+    uint16    mgmtFeeBpsPerYear;           // accrued as share dilution
+    uint16    perfFeeBps;                  // on gain above hurdle-adjusted HWM
+    uint16    hurdleBpsPerYear;            // T-bill baseline hurdle, pro-rated
+    address   agent;                       // ONLY caller of rebalance()
+    TripMode  tripMode;                    // breach behavior
 }
 ```
 
-- `deposit(uint256 amountSafeAsset)` / `withdraw(uint256 shares)` — deposits in mUSD only (v0 simplification); share price = totalValueUSD / totalShares (1e18); first deposit 1:1.
-- `rebalance(uint16[] targetBps, string snapshotJson, string rawProposalJson, string rationale)`:
-  - require: msg.sender == agent, !killed, !tripped, cooldown elapsed, targetBps.length == assets.length, Σ targetBps == 10000, minBps[i] ≤ targetBps[i] ≤ maxBps[i] (else `MandateViolation(i)`)
-  - accrue mgmt fee (time-prorated share dilution to feeRecipient), check drawdown → maybe trip instead
-  - execute swaps via MockVenue to reach target allocation (oracle-priced)
-  - perf fee if sharePrice > HWM*(1 + hurdle·Δt/year): mint perf shares on excess, update HWM
-  - emit `DecisionLogged(epoch, keccak(snapshotJson), keccak(rawProposalJson), targetBps, keccak(rationale))`
-  - emit `DecisionData(epoch, snapshotJson, rawProposalJson, rationale)` // full replay payload on-chain
-- `tripCheck()` public — anyone can trigger drawdown trip (keeper-style); trip = force-swap all → assets[0], `agentSuspended = true`, emit `DrawdownTripped`.
-- `kill()` / `resume()` / `setMandateBounds(...)` — owner only. Kill = permanent agent lockout + withdrawals only.
-- `setAgentIdentity(address registry, uint256 agentId)` — ERC-8004 adapter stub (AC: official NFT linkage = stretch).
+- `deposit(amount)` / `withdraw(shares)` — mUSD in/out (v0); first-deposit floor +
+  dead shares (inflation defense). **`withdraw()` is never blocked** — callable
+  when tripped or killed (verified invariant; depositors can always exit).
+- `rebalance(targetBps, snapshotJson, rawProposalJson, rationale)` — agent-only;
+  re-checks `msg.sender==agent`, `!killed`, `!tripped`, cooldown, length,
+  Σ=10000, and `minBps[i] ≤ targetBps[i] ≤ maxBps[i]` for **every** asset (else
+  `MandateViolation(i)`); accrues fees; on drawdown breach **trips instead of
+  executing**; settles swaps via the venue; emits `DecisionLogged` (3 keccak
+  hashes + clampedBps) + `DecisionData` (full payload) + (RFQ) `QuoteFilled` (TCA).
+- `tripCheck()` — permissionless; on breach: **FREEZE** suspends the agent and
+  **holds positions** (no forced dump), **DERISK** sells every sleeve to the safe
+  asset via the venue. Cleared only by owner `resume()` (resets HWM).
+- Owner-only: `kill` (permanent agent lockout; withdrawals still work),
+  `resume`, `setAgent` (manager swap, no liquidation), `setMandateBounds`,
+  `setAgentIdentity` (ERC-8004 stub). **No owner function moves depositor funds.**
 
-### VaultFactory
-- `createVault(templateId)` — clones (or `new`) MandateVault with preset Mandate; registry array + `VaultCreated` event.
-- Templates: 0=Conservative (mUSD 70-100%, mMETH 0-30%, DD 5%), 1=Balanced (mUSD 30-100%, mMETH 0-70%, DD 10%), 2=Aggressive+MNT (3-asset: mUSD 20-100 / mMETH 0-80 / mMNT 0-20, DD 15%) — #2 doubles as the "institutional custom mandate" demo.
-- `createCustomVault(Mandate)` — institutional path (L2 demo scene).
+### RFQVenue (the execution pillar) — behind `ISwapVenue`
 
-### Mocks
-- `MockERC20`: mintable-by-anyone faucet mint (testnet only, labeled).
-- `MockOracle`: `setPrice(asset, priceUsd1e18)` owner; read by vault + venue. Demo scene 2 crashes mMETH price.
-- `MockVenue`: `swap(assetIn, assetOut, amountIn)` at oracle prices, zero slippage (slippage modeling = roadmap).
+- EIP-712 `Quote{assetIn, assetOut, amountIn, amountOut, expiry, mm, nonce}`.
+- `postQuote(q, sig)` — verifies signature, expiry, per-MM nonce (replay
+  protection), EIP-2 low-s; stores the active quote per directed pair.
+- `swap(assetIn, assetOut, amountIn)` — consumes a valid posted quote pro-rata
+  (atomic vault↔MM settle at the signed price); else **oracle-mid fallback** from
+  venue reserves so autonomous paths never strand.
+- `fillSignedQuote(q, sig)` — direct taker path (verify + settle in one call).
+- Every fill emits `QuoteFilled(mm, …, oracleMidOut, improvementBps)` = on-chain
+  TCA. Known limitation SEC-1 (permissionless `postQuote`) is disclosed in
+  SECURITY.md with the mainnet remedy.
 
-## clamp-core (TS, the single source of truth shared by agent + verifier + web)
+### VaultFactory & mocks
 
-- `ProposalSchema` (zod): `{ regime: 'RISK_ON'|'NEUTRAL'|'RISK_OFF', targetAllocBps: number[], rationale: string }`
-- `clamp(targetBps, mandate) → { clampedBps, violations[] }`: per-asset clamp to [min,max], then largest-remainder renormalize to Σ=10000 **within bounds** (deterministic; documented algorithm; if infeasible → safe-asset fallback allocation).
-- `canonicalJson(obj)`: sorted-keys stable stringify — MUST byte-match what agent submits on-chain.
-- `hashString(s)`: keccak256(utf8 bytes) via viem — matches solidity `keccak256(bytes(s))`.
+- `createVault(templateId, agent)` (0 Conservative / 1 Balanced / 2 Aggressive) and
+  `createCustomVault(Mandate)` — both **permissionless**; `feeRecipient` is always
+  the factory owner (every vault pays the platform).
+- Templates: Conservative mUSD 70-100% / mMETH 0-30% / DD 5%; Balanced 30-100% /
+  0-70% / DD 10%; Aggressive (3-asset incl. MNT) 20-100 / 0-80 / 0-20 / DD 15%.
+- `MockERC20` (open faucet mint), `MockOracle` (owner setPrice), `MockVenue`
+  (oracle-priced, retained for tests) — testnet-only, labeled; mainnet swaps in
+  real token addresses, a decentralized oracle, and a real RFQ/AMM venue.
 
-## Agent (TypeScript)
+## clamp-core (shared by agent · verifier · web)
 
-- Feeds: Binance funding (real REST: last 8h rate + 7d mean), MockOracle prices + vault state via viem.
-- Snapshot: `{ ts, chainId, vault, funding: {...}, prices: {...}, vaultState: {allocBps, sharePrice, hwm, tripped} }` → canonicalJson.
-- LLM: OpenRouter chat completions, `response_format: json` + schema-in-prompt, temp 0, 3-model fallback chain, 30s timeout, zod parse + 2 retries → on total failure: deterministic fallback proposal (NEUTRAL, hold current allocation) so the agent NEVER stalls (logged as `llmFallback: true` in snapshot).
-- Pipeline: snapshot → LLM rawProposal → clamp → `rebalance(clampedBps, snapshotJson, rawProposalJson, rationale)`.
-- Modes: `run once` | `sim --steps N --funding-history file` (drives MockOracle per step, populates ≥10 decisions, AC-9) | `loop --interval` (stretch). `--violate` flag skips clamp and submits raw out-of-bounds target → on-chain revert (demo scene 1).
+- `ProposalSchema` / `SnapshotSchema` / `MandateBoundsSchema` (zod). Snapshot
+  carries optional `llmFallback` + `playbookVersion`.
+- `clamp(targetBps, bounds) → {clampedBps, violations}` — per-asset clamp + sum
+  repair to Σ=10000 within bounds (deterministic; safe-first deficit repair).
+- `canonicalJson` (sorted-key stable; byte-matches what the agent submits) +
+  `hashString` (keccak, matches solidity `keccak256(bytes(s))`).
+- `confidential.ts` — AES-256-GCM envelopes (WebCrypto): privacy-lite encrypts
+  the published payloads under a viewing key; the on-chain hashes commit to the
+  **published** envelope, so integrity verification is unchanged and a key-holder
+  decrypts to byte-identical canonical strings for full schema + clamp replay.
 
-## Verifier (TS CLI)
+## Verifier (TS CLI + in-browser)
 
-`verify --vault 0x.. --epoch N [--tamper]`: fetch DecisionLogged+DecisionData → recompute keccak hashes from emitted strings → re-parse rawProposal → re-run clamp → compare clampedBps vs on-chain targetBps → report ✓/✗ table. `--tamper` mutates snapshot before recompute to show ✗ (demo scene 3b).
+`verify --vault 0x.. --epoch N [--tamper] [--viewing-key …]`: fetch
+DecisionLogged + DecisionData → recompute the three keccak hashes → re-parse +
+replay the clamp → **VERIFIED** / **TAMPERED** (hash break) / **INDETERMINATE**
+(hashes intact but clamp differs — mandate bounds may have changed since the
+epoch) / **🔒 INTEGRITY VERIFIED** (confidential, no key). The same `doVerify`
+runs in the browser Verify button via clamp-core.
 
-## Web (Vite + React + wagmi/viem, CF Pages)
+## Demo scenes (scripts/) & full E2E
 
-Pages: Vaults (factory registry, template cards w/ mandate summary) · Vault detail (mandate card, allocation bar, share price + HWM, decision timeline from events with regime badge/proposal vs clamped/rationale, **Verify button** running clamp-core in-browser) · Deposit flow (connect wallet, faucet mint button, deposit/withdraw). Read-only works without wallet.
+`bash scripts/e2e-anvil.sh` rehearses the whole story on a fresh local anvil.
+Individual scenes:
+1. `scene1-violation.sh` — agent `--violate` → on-chain `MandateViolation` revert.
+2. `scene2-rfq.sh` — RFQ: signed quotes → best pick → atomic fill + TCA.
+3. `scene3-drawdown.sh` — oracle crash → `tripCheck()` → FREEZE (positions held).
+4. `scene4-verify.sh` — verifier ✓ on a real epoch, then `--tamper` → ✗.
 
-## Demo Scenes (scripted, repeatable — scripts/)
+## Deployed (Mantle Sepolia, source-verified on mantlescan)
 
-1. `scene1-violation.sh` — agent `--violate` → `MandateViolation` revert shown on explorer + console.
-2. `scene2-drawdown.sh` — MockOracle crashes mMETH −30% → `tripCheck()` → auto de-risk to mUSD + `DrawdownTripped` + agent suspended (subsequent rebalance reverts).
-3. `scene3-verify.sh` — verifier ✓ on real epoch; `--tamper` → ✗.
+VaultFactory `0xF6b02eaF2f3a08bEf0db2E2293C0B07eFf4BDB0f` · RFQVenue
+`0x6555A9429DCa1E0967744e0F55B2891E56f2D7d1` · demo vault
+`0xBd5A3F03ed0488262b4bE31d9854CaF3c442de14` · confidential vault
+`0x0AEfA5D20544499680aa2E4662EE9f171E0B747a`. Dashboard
+https://mandate-vault.pages.dev. Repo https://github.com/0xarkstar/mandate-vault.
 
-## Schedule (deadline 6/16 00:59 KST)
+## Business model & scope
 
-| Day | Work | AC |
-|---|---|---|
-| D1 (6/11 night) | Scaffold ✓, DESIGN ✓, contracts + tests | AC-12 |
-| D2 (6/12) | Tests green, deploy Sepolia + mantlescan verify, clamp-core, agent core, first on-chain decisions | AC-1,2,3 |
-| D3 (6/13) | Verifier CLI, web, sim run (≥10 decisions), 3 demo scenes, CF Pages | AC-4,7,8,9,10,11 |
-| D4 (6/14) | Polish, README, PITCH, video script + recording, GitHub push | AC-5,6,13,14,15 |
-| 6/15 | Buffer + DoraHacks submit | ship |
-
-## User-Blocking Items (request just-in-time)
-
-| Item | Needed by | Note |
-|---|---|---|
-| Burner wallet funded via faucet | D2 deploy | I generate keypair w/ cast; user completes faucet captcha (faucet.sepolia.mantle.xyz or docs faucet) |
-| OpenRouter free API key | D2 agent | free signup |
-| Etherscan API key (free) | D2 verify | etherscan.io free tier, V2 multichain covers 5003 |
-| GitHub repo (public) | D4 push | gh CLI if authed |
-| CF Pages project | D3 web deploy | wrangler if authed |
-| DoraHacks hacker registration + BUIDL form | 6/15 | manual |
-| Mantle TG: ERC-8004 official NFT flow | parallel, non-blocking | stretch linkage |
-| Demo video recording | D4 | script provided; screen capture |
-
-## Byreal Alignment (pitch/roadmap, not build scope)
-
-Bybit-first data sourcing is implemented (above). Byreal itself runs on Solana
-(Byreal CLMM / Perps Agent Skills / RealClaw), so direct integration belongs to
-the Agentic Economy track, not this RWA submission. Pitch treatment:
-- `ISwapVenue` is venue-agnostic by design — a Byreal Perps Agent Skills
-  execution adapter is the named roadmap item for the hedge/execution leg.
-- The agent daemon is packageable as a RealClaw skill (OpenClaw-based) —
-  roadmap slide, one line.
-
-## Non-Goals Guardrails (do NOT build)
-
-Mainnet anything · real DEX adapters · 24/7 hosting · L3 marketplace · multi-depositor share edge-cases beyond basics · own ERC-8004 registry · X campaign · token.
+No token today (value lands in Mantle-native assets; fee-on-flow: 1%/yr mgmt +
+10% perf above a 4.5% T-bill hurdle, live in the contract). A future token is
+permissible only against organic fee flow at defined milestones — never
+TVL-rental emissions (see STRESS-TEST-QA.md). Mainnet prerequisites
+(audit, multisig owner, decentralized oracle, real MMs, SafeERC20, the SEC-*
+hardening) are listed in SECURITY.md, none claimed as done.
