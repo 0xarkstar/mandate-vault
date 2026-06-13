@@ -23,6 +23,15 @@
   quickstart) — derived from SUBMISSION.md, keep them consistent.
 - **REMAINING WORK = the Sepolia/live track only** (§6) — blocked on 3
   user-provided items. Everything buildable without the user is built.
+- **AUDITED 2026-06-13:** 11-dimension multi-agent self-audit + adversarial
+  verification. Core money invariants verified to HOLD. Contracts FROZEN
+  (deployed==source==verified preserved — no D-2 redeploy). All findings +
+  dispositions published in **docs/SECURITY.md** (SEC-1 HIGH postQuote
+  griefing disclosed w/ mainnet remedy). Fixed off-chain: verifier
+  INDETERMINATE soundness, distill 0-seed bug, playbookVersion v0 leak; +10
+  forge security tests; DESIGN.md rewritten to as-built. HEAD `9dbe532`.
+  Do NOT re-litigate the no-redeploy decision: the live demo is verified and
+  the HIGH finding is testnet griefing (not theft), disclosed honestly.
 
 ## 1. What the product IS (final, frozen)
 
