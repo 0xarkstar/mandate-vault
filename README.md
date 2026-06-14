@@ -54,9 +54,10 @@ playbook version — any third party can replay and verify it
 
 ## Using it — the first five minutes
 
-Browse vaults (no wallet needed) → open one and read its *contract*, not a
-prospectus: mandate card (bounds, "On breach: FREEZE"), separation-of-powers
-card, full decision timeline with fill-vs-mid badges → click **🔍 Verify**
+Browse vaults (no wallet needed) → open one and watch the **decision-flow
+hero** replay a real decision through the three engines (deliberation → no-LLM
+boundary → execution → on-chain), read its mandate card (bounds, "On breach:
+FREEZE"), scan the decision timeline with fill-vs-mid badges → click **🔍 Verify**
 and watch your browser recompute the hashes and replay the clamp → connect
 a wallet (Mantle Sepolia; faucet mint built into the deposit panel) →
 approve + deposit → done. You never operate anything; the agent runs, the
