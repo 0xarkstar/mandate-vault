@@ -23,6 +23,15 @@
   quickstart) — derived from SUBMISSION.md, keep them consistent.
 - **REMAINING WORK = the Sepolia/live track only** (§6) — blocked on 3
   user-provided items. Everything buildable without the user is built.
+- **UI FULL REDESIGN 2026-06-14:** centerpiece = **DecisionFlow** — a real
+  on-chain decision animated through 3 engine swimlanes (DELIBERATION/LLM →
+  "⊘ no LLM crosses this line" → EXECUTION/no-LLM → ON-CHAIN), real data per
+  stage, replay + epoch selector (`web/src/components/DecisionFlow.tsx` +
+  pure `lib/decision-flow.ts`). VaultsPage = story-forward landing + 3-engine
+  teaser; Arena = visual leaderboard (medals/score bars); detail restructured
+  around the flow hero (static separation card retired). Design system gained
+  lane tokens + motion. Data layer untouched. **web 89 tests** green, deployed
+  to mandate-vault.pages.dev (live-verified chrome). HEAD `b71eb42`.
 - **AUDITED 2026-06-13:** 11-dimension multi-agent self-audit + adversarial
   verification. Core money invariants verified to HOLD. Contracts FROZEN
   (deployed==source==verified preserved — no D-2 redeploy). All findings +
