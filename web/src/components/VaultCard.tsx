@@ -12,7 +12,10 @@ export function VaultCard({ entry }: { entry: VaultEntry }) {
   const sublabel = templateSublabel(template)
 
   return (
-    <Card className="p-5" onClick={() => navigate({ name: 'vault', address: state.address })}>
+    <Card
+      className="group h-full p-5 transition-transform duration-200 hover:-translate-y-0.5"
+      onClick={() => navigate({ name: 'vault', address: state.address })}
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold tracking-tight text-mist-100">{template}</h3>
@@ -23,7 +26,7 @@ export function VaultCard({ entry }: { entry: VaultEntry }) {
       </div>
 
       <div className="mt-4">
-        <AllocationBar bps={state.currentAllocationBps} symbols={symbols} />
+        <AllocationBar bps={state.currentAllocationBps} symbols={symbols} height={16} />
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2">
@@ -33,9 +36,12 @@ export function VaultCard({ entry }: { entry: VaultEntry }) {
         <Chip label="Cooldown" value={formatCooldown(state.mandate.rebalanceCooldown)} />
       </div>
 
-      <div className="mt-4 flex items-center justify-between text-xs text-mist-400">
-        <span className="font-mono">{shortenAddress(state.address)}</span>
-        <span>{state.epoch} decisions →</span>
+      <div className="mt-4 flex items-center justify-between border-t border-ink-700/60 pt-3 text-xs">
+        <span className="font-mono text-mist-400">{shortenAddress(state.address)}</span>
+        <span className="font-medium text-mist-300 transition-colors group-hover:text-accent-400">
+          {state.epoch} decisions
+          <span className="ml-1 inline-block transition-transform group-hover:translate-x-0.5">→</span>
+        </span>
       </div>
     </Card>
   )

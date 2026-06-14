@@ -1,16 +1,16 @@
 import { config } from '../config'
-import { navigate } from '../lib/router'
+import { navigate, useRoute } from '../lib/router'
 import { Badge } from './ui/Badge'
 
 export function Header() {
+  const route = useRoute()
+  const onArena = route.name === 'arena'
+
   return (
-    <header className="sticky top-0 z-20 border-b border-ink-800 bg-ink-950/80 backdrop-blur-md">
+    <header className="sticky top-0 z-20 border-b border-ink-800 bg-ink-950/75 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <button
-          onClick={() => navigate({ name: 'vaults' })}
-          className="flex items-center gap-3 text-left"
-        >
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-500/15 ring-1 ring-inset ring-accent-500/30">
+        <button onClick={() => navigate({ name: 'vaults' })} className="flex items-center gap-3 text-left">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-500/15 shadow-[0_0_18px_-4px_rgba(34,197,94,0.5)] ring-1 ring-inset ring-accent-500/30">
             <span className="text-lg">🛡️</span>
           </div>
           <div>
@@ -18,18 +18,32 @@ export function Header() {
             <div className="text-[11px] text-mist-400">AI under mandate, verified on-chain</div>
           </div>
         </button>
-        <div className="flex items-center gap-4">
-          <nav className="flex items-center gap-3 text-sm">
-            <button onClick={() => navigate({ name: 'vaults' })} className="text-mist-300 hover:text-mist-100">
+
+        <div className="flex items-center gap-5">
+          <nav className="flex items-center gap-1 text-sm">
+            <NavLink active={!onArena} onClick={() => navigate({ name: 'vaults' })}>
               Vaults
-            </button>
-            <button onClick={() => navigate({ name: 'arena' })} className="text-mist-300 hover:text-mist-100">
+            </NavLink>
+            <NavLink active={onArena} onClick={() => navigate({ name: 'arena' })}>
               Arena
-            </button>
+            </NavLink>
           </nav>
           <Badge tone="blue">Mantle Sepolia · {config.chainId}</Badge>
         </div>
       </div>
     </header>
+  )
+}
+
+function NavLink({ active, onClick, children }: { active: boolean; onClick: () => void; children: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-lg px-3 py-1.5 font-medium transition-colors ${
+        active ? 'bg-ink-800 text-mist-100' : 'text-mist-400 hover:text-mist-200'
+      }`}
+    >
+      {children}
+    </button>
   )
 }

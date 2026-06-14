@@ -1,13 +1,15 @@
+import { useMemo } from 'react'
 import { useVaultDetail } from '../hooks/useVaultDetail'
 import { navigate } from '../lib/router'
 import { extractPlaybookVersion } from '../lib/snapshot-meta'
+import { indexTcaByTx } from '../lib/fills-tca'
 import { AllocationBar } from '../components/AllocationBar'
 import { MandateCard } from '../components/MandateCard'
 import { VaultHeader } from '../components/VaultHeader'
+import { DecisionFlow } from '../components/DecisionFlow'
 import { DecisionTimeline } from '../components/DecisionTimeline'
 import { DepositPanel } from '../components/DepositPanel'
 import { PlaybookCard } from '../components/PlaybookCard'
-import { SeparationOfPowersCard } from '../components/SeparationOfPowersCard'
 import { RunwayCard } from '../components/RunwayCard'
 import { Card, SectionTitle } from '../components/ui/Card'
 
@@ -16,12 +18,13 @@ export function VaultDetailPage({ address }: { address: `0x${string}` }) {
     useVaultDetail(address)
 
   const playbookVersion = decisions[0] ? extractPlaybookVersion(decisions[0].snapshotJson) : null
+  const tcaByTx = useMemo(() => indexTcaByTx(fills), [fills])
 
   return (
-    <div>
+    <div className="mv-fade-in">
       <button
         onClick={() => navigate({ name: 'vaults' })}
-        className="mb-6 text-xs font-medium text-mist-400 hover:text-mist-200"
+        className="mb-6 text-xs font-medium text-mist-400 transition-colors hover:text-mist-200"
       >
         ← All vaults
       </button>
@@ -36,7 +39,13 @@ export function VaultDetailPage({ address }: { address: `0x${string}` }) {
         <>
           <VaultHeader state={state} symbols={symbols} />
 
-          <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
+          {decisions.length > 0 ? (
+            <div className="mt-8">
+              <DecisionFlow decisions={decisions} mandate={state.mandate} symbols={symbols} tcaByTx={tcaByTx} />
+            </div>
+          ) : null}
+
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
             <div className="space-y-6 lg:col-span-2">
               <MandateCard mandate={state.mandate} symbols={symbols} currentBps={state.currentAllocationBps} />
 
@@ -44,16 +53,12 @@ export function VaultDetailPage({ address }: { address: `0x${string}` }) {
                 <SectionTitle sub="Live on-chain holdings, oracle-priced.">Current allocation</SectionTitle>
                 <AllocationBar bps={state.currentAllocationBps} symbols={symbols} height={18} />
               </Card>
-
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <PlaybookCard version={playbookVersion} />
-                <SeparationOfPowersCard />
-              </div>
             </div>
 
             <div className="space-y-6 lg:col-span-1">
               <DepositPanel state={state} onAction={reload} />
               <RunwayCard state={state} safeSymbol={symbols[0] ?? 'mUSD'} />
+              <PlaybookCard version={playbookVersion} />
             </div>
           </div>
 
