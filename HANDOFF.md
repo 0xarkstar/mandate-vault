@@ -12,7 +12,7 @@
 - **THE §5 BUILD CYCLE IS DONE.** All six changes (#1 RFQ engine, #2 FREEZE
   trip, #3 deliberation split, #4 learning slice, #5 Agent Arena, #6 web
   upgrades) are built, tested, rehearsed E2E on local anvil, and committed.
-- **276 tests green**: contracts 51 (forge) + agent 94 + web 83 + verifier 24 +
+- **282 tests green**: contracts 51 (forge) + agent 94 + web 89 + verifier 24 +
   clamp-core 24. tsc clean in every package; vite build clean.
 - **Full E2E rehearsal is now ONE COMMAND**: `bash scripts/e2e-anvil.sh`
   (fresh burner keys per run, no user input, ~4 min). Verified twice this
@@ -183,7 +183,7 @@ RFQ legs filled +4bps TCA). Demo viewing key (public BY DESIGN, in README):
 Verifier `--viewing-key` → 🔒 VERIFIED; without → 🔒 INTEGRITY VERIFIED.
 Privacy-lite shipped 2026-06-13: clamp-core `confidential.ts` (WebCrypto
 AES-GCM envelopes), agent `VIEWING_KEY` env, verifier/web selective
-disclosure. Tests now **276** (clamp-core 24 · verifier 24 · web 83 ·
+disclosure. Tests now **282** (clamp-core 24 · verifier 24 · web 89 ·
 agent 94 · forge 51). Arena round 2 ran: template vaults at 2 epochs each
 (gpt-oss 85/15, gemma 80/20/0 real proposals; nemotron 429→honest fallback
 twice). Repo public: https://github.com/0xarkstar/mandate-vault. Pitch

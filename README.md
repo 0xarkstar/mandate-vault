@@ -90,7 +90,7 @@ agent/       TS daemon — deliberate/ (propose·review·gate·onboard),
              mm/ demo market makers, confidential payloads, tools/ (94 tests)
 verifier/    third-party replay verification CLI, viewing-key aware (24 tests)
 web/         Vite + React dashboard — vaults, decision timeline, cage
-             diagram, TCA, Agent Arena (in-browser verification) (83 tests)
+             diagram, TCA, Agent Arena (in-browser verification) (89 tests)
 packages/    clamp-core (shared cage + confidential envelopes, 24 tests) · abi
 ```
 
@@ -205,5 +205,5 @@ replay-verifiable AI decision**.
 
 ## Tests
 
-`pnpm -r test` (TS: clamp-core 24 · verifier 24 · web 83 · agent 94) and
-`cd contracts && forge test` (51) — **276 tests**, all green at HEAD.
+`pnpm -r test` (TS: clamp-core 24 · verifier 24 · web 89 · agent 94) and
+`cd contracts && forge test` (51) — **282 tests**, all green at HEAD.

@@ -170,7 +170,7 @@ prop-trades against its own flow — that conflict is constitutionally out.
 
 Solidity 0.8.24 (Foundry) · TypeScript agent (viem, zod, OpenRouter free
 models) · standalone verifier CLI + in-browser verification (shared
-clamp-core) · Vite + React 19 dashboard · Mantle Sepolia · 276 tests.
+clamp-core) · Vite + React 19 dashboard · Mantle Sepolia · 282 tests.
 
 ## Track vocabulary (for triage)
 
